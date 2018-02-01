@@ -17,6 +17,7 @@
 /* Always-On Peripherals registers */
 #define GX_AO_ADDR(off)	(GX_AOBUS_BASE + ((off) << 2))
 
+#define GX_AO_SEC_SD_CFG8	GX_AO_ADDR(0x88)
 #define GX_AO_SEC_GP_CFG0	GX_AO_ADDR(0x90)
 #define GX_AO_SEC_GP_CFG3	GX_AO_ADDR(0x93)
 #define GX_AO_SEC_GP_CFG4	GX_AO_ADDR(0x94)
