@@ -7,3 +7,5 @@
 obj-$(CONFIG_CPU) += cpu-uclass.o
 
 obj-$(CONFIG_ARCH_BMIPS) += bmips_cpu.o
+
+obj-$(CONFIG_MESON_GX_SOCINFO) += meson-gx-socinfo.o
