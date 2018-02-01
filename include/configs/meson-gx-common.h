@@ -1,12 +1,12 @@
 /*
- * Configuration for Amlogic Meson GXBB SoCs
+ * Configuration for Amlogic Meson GX SoCs
  * (C) Copyright 2016 Beniamino Galvani <b.galvani@gmail.com>
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
 
-#ifndef __MESON_GXBB_COMMON_CONFIG_H
-#define __MESON_GXBB_COMMON_CONFIG_H
+#ifndef __MESON_GX_COMMON_CONFIG_H
+#define __MESON_GX_COMMON_CONFIG_H
 
 #define CONFIG_CPU_ARMV8
 #define CONFIG_REMAKE_ELF
@@ -44,4 +44,4 @@
 
 #define CONFIG_SYS_BOOTM_LEN    (64 << 20)      /* 64 MiB */
 
-#endif /* __MESON_GXBB_COMMON_CONFIG_H */
+#endif /* __MESON_GX_COMMON_CONFIG_H */
