@@ -122,12 +122,12 @@ static int meson_set_gate(struct clk *clk, bool on)
 	struct meson_gate *gate;
 
 	if (clk->id >= ARRAY_SIZE(gates))
-		return -ENOENT;
+		return -ENOSYS;
 
 	gate = &gates[clk->id];
 
 	if (gate->reg == 0)
-		return -ENOENT;
+		return -ENOSYS;
 
 	clrsetbits_le32(priv->addr + gate->reg,
 			BIT(gate->bit), on ? BIT(gate->bit) : 0);
@@ -150,9 +150,9 @@ static ulong meson_clk_get_rate(struct clk *clk)
 
 	if (clk->id != CLKID_CLK81) {
 		if (clk->id >= ARRAY_SIZE(gates))
-			return -ENOENT;
+			return -ENOSYS;
 		if (gates[clk->id].reg == 0)
-			return -ENOENT;
+			return -ENOSYS;
 	}
 
 	/* Use cached value if available */
