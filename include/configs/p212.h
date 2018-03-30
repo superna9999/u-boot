@@ -12,10 +12,7 @@
 
 #define CONFIG_MISC_INIT_R
 
-#define CONFIG_PHY_ADDR 		8
-
 /* Serial setup */
-#define CONFIG_CONS_INDEX		0
 
 #define MESON_FDTFILE_SETTING "fdtfile=amlogic/meson-gxl-s905x-p212.dtb\0"
 

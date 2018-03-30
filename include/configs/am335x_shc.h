@@ -236,7 +236,6 @@
 #define CONFIG_SYS_NS16550_COM4		0x481a6000	/* UART3 */
 #define CONFIG_SYS_NS16550_COM5		0x481a8000	/* UART4 */
 #define CONFIG_SYS_NS16550_COM6		0x481aa000	/* UART5 */
-#define CONFIG_CONS_INDEX               1
 
 /* PMIC support */
 #define CONFIG_POWER_TPS65217
@@ -258,7 +257,6 @@
 #define CONFIG_BOOTP_DNS2
 #define CONFIG_BOOTP_SEND_HOSTNAME
 #define CONFIG_NET_RETRY_COUNT         10
-#define CONFIG_PHY_ADDR			0
 #define CONFIG_PHY_SMSC
 
 /* I2C configuration */

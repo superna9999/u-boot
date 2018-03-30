@@ -35,7 +35,6 @@ obj-$(CONFIG_USB_EHCI_MX5) += ehci-mx5.o
 obj-$(CONFIG_USB_EHCI_MX6) += ehci-mx6.o
 obj-$(CONFIG_USB_EHCI_MX7) += ehci-mx6.o
 obj-$(CONFIG_USB_EHCI_OMAP) += ehci-omap.o
-obj-$(CONFIG_USB_EHCI_PPC4XX) += ehci-ppc4xx.o
 obj-$(CONFIG_USB_EHCI_MARVELL) += ehci-marvell.o
 obj-$(CONFIG_USB_EHCI_MSM) += ehci-msm.o
 obj-$(CONFIG_USB_EHCI_PCI) += ehci-pci.o
@@ -50,6 +49,7 @@ obj-$(CONFIG_USB_EHCI_ZYNQ) += ehci-zynq.o
 # xhci
 obj-$(CONFIG_USB_XHCI_HCD) += xhci.o xhci-mem.o xhci-ring.o
 obj-$(CONFIG_USB_XHCI_DWC3) += xhci-dwc3.o
+obj-$(CONFIG_USB_XHCI_DWC3_OF_SIMPLE) += dwc3-of-simple.o
 obj-$(CONFIG_USB_XHCI_ROCKCHIP) += xhci-rockchip.o
 obj-$(CONFIG_USB_XHCI_ZYNQMP) += xhci-zynqmp.o
 obj-$(CONFIG_USB_XHCI_KEYSTONE) += xhci-keystone.o

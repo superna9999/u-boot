@@ -38,7 +38,6 @@
 #define CONFIG_PL01x_PORTS			{ (void *)CONFIG_SYS_SERIAL0, \
 						(void *)CONFIG_SYS_SERIAL1 }
 #define CONFIG_PL011_CLOCK			(48 * 1000 * 1000)
-#define CONFIG_CONS_INDEX			0
 #define CONFIG_SYS_BAUDRATE_TABLE		{ 9600, 19200, 38400, \
 						  57600, 115200 }
 #define CONFIG_SYS_LOADS_BAUD_CHANGE
@@ -70,7 +69,6 @@
 /* Ethernet config options */
 #define CONFIG_MII
 #define CONFIG_PHY_RESET_DELAY			10000		/* in usec */
-#define CONFIG_PHY_ADDR		0	/* PHY address */
 
 #define CONFIG_SPEAR_GPIO
 
