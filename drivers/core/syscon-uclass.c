@@ -108,4 +108,5 @@ U_BOOT_DRIVER(generic_syscon) = {
 	.bind           = dm_scan_fdt_dev,
 #endif
 	.of_match = generic_syscon_ids,
+	.flags = DM_FLAG_PRE_RELOC,
 };

@@ -5,9 +5,13 @@
  * SPDX-License-Identifier:	GPL-2.0+
  */
 
+#define DEBUG
+
 #include <common.h>
 #include <cpu.h>
 #include <dm.h>
+#include <dm/root.h>
+#include <dm/lists.h>
 #include <errno.h>
 #include <asm/io.h>
 #include <linux/bitfield.h>
@@ -112,8 +116,12 @@ static int meson_gx_socinfo_get_desc(struct udevice *dev, char *buf, int size)
 {
 	struct meson_gx_socinfo_priv *priv = dev_get_priv(dev);
 	uint socinfo;
+
+	printf("%s:%d base %x\n", __func__, __LINE__, priv->regmap->base);
 	
 	regmap_read(priv->regmap, AO_SEC_SOCINFO_OFFSET, &socinfo);
+
+	printf("%s:%d\n", __func__, __LINE__);
 
 	snprintf(buf, size, "Amlogic Meson %s (%s) rev %x:%x (%x:%x)",
 		socinfo_to_soc_id(socinfo),
@@ -123,6 +131,8 @@ static int meson_gx_socinfo_get_desc(struct udevice *dev, char *buf, int size)
 		socinfo_to_pack(socinfo),
 		socinfo_to_misc(socinfo));
 
+	printf("%s:%d\n", __func__, __LINE__);
+	
 	return 0;
 }
 
@@ -138,41 +148,71 @@ static const struct cpu_ops meson_gx_socinfo_ops = {
 	.get_vendor = meson_gx_socinfo_get_vendor,
 };
 
-int meson_gx_socinfo_probe(struct udevice *dev)
+int meson_gx_socinfo_bind(struct udevice *dev)
 {
 	struct meson_gx_socinfo_priv *priv = dev_get_priv(dev);
 
-	return regmap_init_mem(dev, &priv->regmap);
-}
+	printf("%s:%d\n", __func__, __LINE__);
 
-static const struct udevice_id meson_gx_socinfo_ids[] = {
-	{ .compatible = "amlogic,meson-gx-ao-secure", }, 
-	{ /* sentinel */ }
-};
+	priv->regmap = syscon_get_regmap(dev->parent, &priv->regmap);
+
+	printf("%s:%d\n", __func__, __LINE__);
+
+	if (!priv->regmap)
+		return -EINVAL;
+
+	printf("%s:%d\n", __func__, __LINE__);
+
+	return 0;
+}
 
 U_BOOT_DRIVER(meson_gx_socinfo_drv) = {
 	.name = "meson-gx-socinfo",
 	.id = UCLASS_CPU,
-	.of_match = meson_gx_socinfo_ids,
-	.probe = meson_gx_socinfo_probe,
+	.bind = meson_gx_socinfo_bind,
 	.priv_auto_alloc_size = sizeof(struct meson_gx_socinfo_priv),
 	.ops = &meson_gx_socinfo_ops,
+	.flags = DM_FLAG_PRE_RELOC,
 };
 
 #ifdef CONFIG_DISPLAY_CPUINFO
 int print_cpuinfo(void)
 {
+	struct udevice *syscon;
 	struct udevice *dev;
-	int err;
 	char desc[100];
+	int node;
+	int err;
 
-	err = uclass_get_device(UCLASS_CPU, 0, &dev);
+	/* Find the syscon node */
+	node = fdt_node_offset_by_compatible(gd->fdt_blob, -1,
+					     "amlogic,meson-gx-ao-secure");
+	printf("%s:%d = %d\n", __func__, __LINE__, node);
+	if (!node)
+		return 0;
+	printf("%s:%d = %d\n", __func__, __LINE__, err);
+
+	/* Get the syscon device */
+	err = uclass_get_device_by_of_offset(UCLASS_SYSCON, node, &syscon);
+	printf("%s:%d = %d\n", __func__, __LINE__, err);
 	if (err)
 		return 0;
+	printf("%s:%d = %d\n", __func__, __LINE__, err);
+
+	/* Bind this driver as child of the syscon */
+	err = device_bind_driver(syscon, "meson-gx-socinfo",
+				 "meson-gx-socinfo", &dev);
+	printf("%s:%d = %d\n", __func__, __LINE__, err);
+	if (err)
+		return 0;
+
+	printf("%s:%d\n", __func__, __LINE__);
 
 	err = cpu_get_desc(dev, desc, sizeof(desc));
 	if (err)
 		return 0;
+
+	printf("%s:%d\n", __func__, __LINE__);
 
 	printf("CPU: %s", desc);
 

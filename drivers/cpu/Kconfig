@@ -11,4 +11,6 @@ config MESON_GX_SOCINFO
 	bool
 	default y if ARCH_MESON
 	imply CPU
+	imply MISC
 	imply REGMAP
+	imply SYSCON
