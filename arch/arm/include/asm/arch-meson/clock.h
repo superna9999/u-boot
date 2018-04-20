@@ -28,6 +28,7 @@
 #define HHI_GCLK_MPEG2		0x148
 #define HHI_GCLK_OTHER		0x150
 #define HHI_GCLK_AO		0x154
+#define HHI_SAR_CLK_CNTL        0x3D8
 
 ulong meson_measure_clk_rate(unsigned int clk);
 
