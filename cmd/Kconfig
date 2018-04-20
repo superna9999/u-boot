@@ -601,6 +601,13 @@ config CMD_ARMFLASH
 	help
 	  ARM Ltd reference designs flash partition access
 
+config CMD_ADC
+	bool "adc - Access ADC info and data"
+	select ADC
+	select DM_REGULATOR
+	help
+	  Shows ADC device info and get single shot data;
+
 config CMD_CLK
 	bool "clk - Show clock frequencies"
 	help
