@@ -54,3 +54,29 @@ ssize_t meson_sm_read_efuse(uintptr_t offset, void *buffer, size_t size)
 
 	return regs.regs[0];
 }
+
+static do_efuse(cmd_tbl_t *cmdtp, int flag, int argc,
+		char *const argv[])
+{
+	unsigned offset;
+	unsigned size;
+	unsigned dest;
+
+	if (argc < 5 || strcmp(argv[1], "read"))
+		return CMD_RET_FAILURE;
+
+	offset = simple_strtol(argv[2], NULL, 0);
+	size = simple_strtol(argv[3], NULL, 0);
+	dest = simple_strtol(argv[4], NULL, 0);
+
+	if (meson_sm_read_efuse(offset, dest, size) != -1)
+		return CMD_RET_SUCCESS;
+
+	return CMD_RET_FAILURE;
+}
+
+U_BOOT_CMD(
+	efuse, 5, 0, do_efuse,
+	"OTP fuse read",
+	"efuse read <offset> <length> <address> - read length bytes from efuse offset to memory address"
+);
