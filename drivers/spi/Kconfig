@@ -102,6 +102,14 @@ config ICH_SPI
 	  access the SPI NOR flash on platforms embedding this Intel
 	  ICH IP core.
 
+config MESON_SPIFC
+	bool "Amlogic Meson SPI Flash Controller driver"
+	depends on ARCH_MESON
+	help
+	  Enable the Amlogic Meson SPI Flash Controller SPIFC) driver.
+	  This driver can be used to access the SPI NOR flash chips on 
+	  Amlogic Meson SoCs.
+
 config MVEBU_A3700_SPI
 	bool "Marvell Armada 3700 SPI driver"
 	select CLK_ARMADA_3720
