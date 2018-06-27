@@ -40,6 +40,13 @@ config TARGET_P212
 	  with 2 GiB of RAM, Ethernet, HDMI, 2 USB, micro-SD slot,
 	  eMMC, IR receiver, CVBS+Audio jack and a SDIO WiFi module.
 
+config TARGET_LIBRETECH_AC
+	bool "LIBRETECH-AC"
+	help
+	  LibreTech AC is a single board computer based on Meson GXL
+	  with 512 MiB of RAM, Ethernet, HDMI, 4 USB, eMMC, IR receiver,
+	  SPI NOR Flash and a 40-pin GPIO header.
+
 config TARGET_LIBRETECH_CC
 	bool "LIBRETECH-CC"
 	help
@@ -65,6 +72,8 @@ config SYS_MALLOC_F_LEN
 source "board/amlogic/odroid-c2/Kconfig"
 
 source "board/amlogic/p212/Kconfig"
+
+source "board/amlogic/libretech-ac/Kconfig"
 
 source "board/amlogic/libretech-cc/Kconfig"
 
