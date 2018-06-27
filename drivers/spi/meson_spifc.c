@@ -49,6 +49,7 @@
 #define CLOCK_CNT_LOW_MASK	(0x3f << CLOCK_CNT_LOW_SHIFT)
 #define USER_DIN_EN_MS		BIT(0)
 #define USER_CMP_MODE		BIT(2)
+#define USER_CLK_NOT_INV	BIT(7)
 #define USER_UC_DOUT_SEL	BIT(27)
 #define USER_UC_DIN_SEL		BIT(28)
 #define USER_UC_MASK		((BIT(5) - 1) << 27)
@@ -56,6 +57,8 @@
 #define USER1_BN_UC_DOUT_MASK	(0xff << 16)
 #define USER1_BN_UC_DIN_SHIFT	8
 #define USER1_BN_UC_DIN_MASK	(0xff << 8)
+#define USER4_CS_POL_HIGH	BIT(23)
+#define USER4_IDLE_CLK_HIGH	BIT(29)
 #define USER4_CS_ACT		BIT(30)
 #define SLAVE_TRST_DONE		BIT(4)
 #define SLAVE_OP_MODE		BIT(30)
@@ -76,12 +79,15 @@ struct meson_spifc_priv {
 static int meson_spifc_wait_ready(struct meson_spifc_priv *spifc)
 {
 	u32 data;
+	ulong tbase = get_timer(0);
 
 	do {
 		regmap_read(spifc->regmap, REG_SLAVE, &data);
-	} while (!(data & SLAVE_TRST_DONE));
+		if (data & SLAVE_TRST_DONE)
+			return 0;
+	} while (get_timer(tbase) < 5 * CONFIG_SYS_HZ);
 
-	return 0;
+	return -ETIMEDOUT;
 }
 
 /**
@@ -119,7 +125,7 @@ static void meson_spifc_drain_buffer(struct meson_spifc_priv *spifc,
 static void meson_spifc_fill_buffer(struct meson_spifc_priv *spifc,
 				    const u8 *buf, int len)
 {
-	u32 data;
+	u32 data = 0;
 	int i = 0;
 
 	while (i < len) {
@@ -171,6 +177,8 @@ static int meson_spifc_txrx(struct meson_spifc_priv *spifc,
 
 	regmap_update_bits(spifc->regmap, REG_USER4, USER4_CS_ACT,
 			   keep_cs ? USER4_CS_ACT : 0);
+	regmap_update_bits(spifc->regmap, REG_USER4, USER4_IDLE_CLK_HIGH,
+			   keep_cs ? 0 : USER4_IDLE_CLK_HIGH);
 
 	/* clear transition done bit */
 	regmap_update_bits(spifc->regmap, REG_SLAVE, SLAVE_TRST_DONE, 0);
@@ -189,12 +197,14 @@ static int meson_spifc_txrx(struct meson_spifc_priv *spifc,
  * meson_spifc_claim_bus() - claim the SPI bus
  * @dev:	the SPI controller device
  */
-static int meson_spifc_claim_bus(struct udevice *dev)
+static int meson_spifc_claim_bus(struct udevice *slave)
 {
-	struct udevice *bus = dev->parent;
-	struct meson_spifc_priv *spifc = dev_get_priv(bus);
+	struct meson_spifc_priv *spifc = dev_get_priv(slave->parent);
+	int ret;
 
-	regmap_update_bits(spifc->regmap, REG_CTRL, CTRL_ENABLE_AHB, 0);
+	ret = clk_enable(&spifc->clk);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -203,15 +213,11 @@ static int meson_spifc_claim_bus(struct udevice *dev)
  * meson_spifc_release_bus() - release the SPI bus
  * @dev:	the SPI controller device
  */
-static int meson_spifc_release_bus(struct udevice *dev)
+static int meson_spifc_release_bus(struct udevice *slave)
 {
-	struct udevice *bus = dev->parent;
-	struct meson_spifc_priv *spifc = dev_get_priv(bus);
+	struct meson_spifc_priv *spifc = dev_get_priv(slave->parent);
 
-	regmap_update_bits(spifc->regmap, REG_CTRL, CTRL_ENABLE_AHB,
-			   CTRL_ENABLE_AHB);
-
-	return 0;
+	return clk_disable(&spifc->clk);
 }
 
 /**
@@ -223,20 +229,30 @@ static int meson_spifc_release_bus(struct udevice *dev)
  * @flags:	transfer flags
  * Return:	0 on success, a negative value on error
  */
-static int meson_spifc_xfer(struct udevice *dev, unsigned int bitlen,
+static int meson_spifc_xfer(struct udevice *slave, unsigned int bitlen,
 			    const void *dout, void *din, unsigned long flags)
 {
-	struct udevice *bus = dev->parent;
-	struct meson_spifc_priv *spifc = dev_get_priv(bus);
+	struct meson_spifc_priv *spifc = dev_get_priv(slave->parent);
+	int blen = bitlen / 8;
 	int len, done = 0, ret = 0;
 
-	while (done < bitlen && !ret) {
-		len = min_t(int, bitlen - done, SPIFC_BUFFER_SIZE);
+	if (bitlen % 8)
+		return -EINVAL;
+
+	debug("xfer len %d (%d) dout %p din %p\n", bitlen, blen, dout, din);
+
+	regmap_update_bits(spifc->regmap, REG_CTRL, CTRL_ENABLE_AHB, 0);
+
+	while (done < blen && !ret) {
+		len = min_t(int, blen - done, SPIFC_BUFFER_SIZE);
 		ret = meson_spifc_txrx(spifc, dout, din, done, len,
 				       flags & SPI_XFER_END,
-				       done + len >= bitlen);
+				       done + len >= blen);
 		done += len;
 	}
+
+	regmap_update_bits(spifc->regmap, REG_CTRL, CTRL_ENABLE_AHB,
+			   CTRL_ENABLE_AHB);
 
 	return ret;
 }
@@ -248,8 +264,7 @@ static int meson_spifc_xfer(struct udevice *dev, unsigned int bitlen,
  */
 static int meson_spifc_set_speed(struct udevice *dev, uint speed)
 {
-	struct udevice *bus = dev->parent;
-	struct meson_spifc_priv *spifc = dev_get_priv(bus);
+	struct meson_spifc_priv *spifc = dev_get_priv(dev);
 	unsigned long parent, value;
 	int n;
 
@@ -276,10 +291,17 @@ static int meson_spifc_set_speed(struct udevice *dev, uint speed)
  */
 static int meson_spifc_set_mode(struct udevice *dev, uint mode)
 {
-	if (mode & (SPI_CPHA | SPI_CPOL | SPI_CS_HIGH |
-		    SPI_RX_QUAD | SPI_RX_DUAL |
+	struct meson_spifc_priv *spifc = dev_get_priv(dev);
+
+	if (mode & (SPI_CPHA | SPI_RX_QUAD | SPI_RX_DUAL |
 		    SPI_TX_QUAD | SPI_TX_DUAL))
 		return -ENODEV;
+
+	regmap_update_bits(spifc->regmap, REG_USER, USER_CLK_NOT_INV,
+			   mode & SPI_CPOL ? USER_CLK_NOT_INV : 0);
+
+	regmap_update_bits(spifc->regmap, REG_USER4, USER4_CS_POL_HIGH,
+			   mode & SPI_CS_HIGH ? USER4_CS_POL_HIGH : 0);
 
 	return 0;
 }
@@ -316,13 +338,19 @@ static int meson_spifc_probe(struct udevice *dev)
 	if (ret)
 		return ret;
 
-#if CONFIG_IS_ENABLED(CLK)
 	ret = clk_get_by_index(dev, 0, &priv->clk);
 	if (ret)
 		return ret;
-#endif
+
+	ret = clk_enable(&priv->clk);
+	if (ret)
+		return ret;
 
 	meson_spifc_hw_init(priv);
+
+	ret = clk_disable(&priv->clk);
+	if (ret)
+		return ret;
 
 	return 0;
 }
