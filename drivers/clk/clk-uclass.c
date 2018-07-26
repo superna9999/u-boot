@@ -154,6 +154,9 @@ static int clk_set_default_parents(struct udevice *dev)
 	for (index = 0; index < num_parents; index++) {
 		ret = clk_get_by_indexed_prop(dev, "assigned-clock-parents",
 					      index, &parent_clk);
+		/* If -ENOENT, this is a no-op entry */
+		if (ret == -ENOENT)
+			continue;
 		if (ret) {
 			debug("%s: could not get parent clock %d for %s\n",
 			      __func__, index, dev_read_name(dev));
@@ -210,6 +213,10 @@ static int clk_set_default_rates(struct udevice *dev)
 		goto fail;
 
 	for (index = 0; index < num_rates; index++) {
+		/* If 0 is passed, this is a no-op */
+		if (!rates[index])
+			continue;
+
 		ret = clk_get_by_indexed_prop(dev, "assigned-clocks",
 					      index, &clk);
 		if (ret) {
@@ -219,6 +226,13 @@ static int clk_set_default_rates(struct udevice *dev)
 		}
 
 		ret = clk_set_rate(&clk, rates[index]);
+		/*
+		 * Not all drivers may support clock rate setup (as of now).
+		 * Ignore errors due to this.
+		 */
+		if (ret == -ENOSYS)
+			continue;
+
 		if (ret < 0) {
 			debug("%s: failed to set rate on clock %d for %s\n",
 			      __func__, index, dev_read_name(dev));
