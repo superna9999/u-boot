@@ -175,6 +175,8 @@
 		#size-cells = <2>;
 		ranges;
 
+		u-boot,dm-pre-reloc;
+
 		cbus: bus@c1100000 {
 			compatible = "simple-bus";
 			reg = <0x0 0xc1100000 0x0 0x100000>;
@@ -486,6 +488,7 @@
 			interrupts = <GIC_SPI 3 IRQ_TYPE_EDGE_RISING>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			u-boot,dm-pre-reloc;
 
 			/* CVBS VDAC output port */
 			cvbs_vdac_port: port@0 {
