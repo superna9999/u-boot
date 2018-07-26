@@ -11,6 +11,8 @@
 
 #define CONFIG_MISC_INIT_R
 
+#define CONFIG_BOARD_LATE_INIT
+
 #define MESON_FDTFILE_SETTING "fdtfile=amlogic/meson-gxl-s905x-libretech-cc.dtb\0"
 
 #include <configs/meson-gx-common.h>

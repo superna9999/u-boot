@@ -9,14 +9,48 @@
 #include <environment.h>
 #include <asm/io.h>
 #include <asm/arch/gx.h>
-#include <asm/arch/mem.h>
 #include <asm/arch/sm.h>
 #include <asm/arch/eth.h>
+#include <asm/arch/mem.h>
+#include <power-domain.h>
+#include <power/regulator.h>
 
 #define EFUSE_SN_OFFSET		20
 #define EFUSE_SN_SIZE		16
 #define EFUSE_MAC_OFFSET	52
 #define EFUSE_MAC_SIZE		6
+
+int board_late_init(void)
+{
+#ifdef CONFIG_MESON_GX_VPU_POWER_DOMAIN
+	struct power_domain pwrc;
+	struct udevice *regdev;
+	int ret;
+
+	ret = uclass_first_device_err(UCLASS_POWER_DOMAIN, &pwrc.dev);
+	if (ret) {
+		printf("No available Power Domain device\n");
+	} else {
+		ret = power_domain_on(&pwrc);
+		if (ret)
+			printf("Failed to enable VPU Power Domain\n");
+		else
+			printf("Enabled VPU Power Domain\n");
+	}
+
+	ret = regulator_get_by_platname("HDMI_5V", &regdev);
+	if (ret) {
+		printf("Can't get the 5v regulator !\n");
+	} else {
+		ret = regulator_set_enable(regdev, true);
+		if (ret)
+			printf("Failed to enable 5V regulator\n");
+		else
+			printf("Enabled 5V regulator\n");
+	}
+#endif
+	return 0;
+}
 
 int board_init(void)
 {
