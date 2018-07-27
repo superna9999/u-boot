@@ -21,6 +21,7 @@
 #define GX_AO_SEC_GP_CFG4	GX_AO_ADDR(0x94)
 #define GX_AO_SEC_GP_CFG5	GX_AO_ADDR(0x95)
 
+#define GX_AO_BOOT_DEVICE	0xF
 #define GX_AO_MEM_SIZE_MASK	0xFFFF0000
 #define GX_AO_MEM_SIZE_SHIFT	16
 #define GX_AO_BL31_RSVMEM_SIZE_MASK	0xFFFF0000
@@ -55,5 +56,15 @@
 
 /* Ethernet memory power domain */
 #define GX_MEM_PD_REG_0_ETH_MASK	(BIT(2) | BIT(3))
+
+/* Boot device */
+#define BOOT_DEVICE_RESERVED    0
+#define BOOT_DEVICE_EMMC        1
+#define BOOT_DEVICE_NAND        2
+#define BOOT_DEVICE_SPI         3
+#define BOOT_DEVICE_SD          4
+#define BOOT_DEVICE_USB         5
+
+int meson_get_boot_device(void);
 
 #endif /* __GX_H__ */

@@ -16,6 +16,11 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+int meson_get_boot_device(void)
+{
+        return readl(GX_AO_SEC_GP_CFG0) & GX_AO_BOOT_DEVICE;
+}
+
 int dram_init(void)
 {
 	const fdt64_t *val;
