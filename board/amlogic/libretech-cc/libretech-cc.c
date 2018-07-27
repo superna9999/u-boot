@@ -23,6 +23,16 @@ int board_init(void)
 	return 0;
 }
 
+int board_late_init(void)
+{
+	if (meson_get_boot_device() == BOOT_DEVICE_USB)
+		env_set("romusb_booted", "1");
+	else
+		env_set("romusb_booted", "0");
+
+	return 0;
+}
+
 int misc_init_r(void)
 {
 	u8 mac_addr[EFUSE_MAC_SIZE];
