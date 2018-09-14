@@ -14,6 +14,9 @@
 #define FN_GET_SHARE_MEM_OUTPUT_BASE	0x82000021
 #define FN_EFUSE_READ			0x82000030
 #define FN_EFUSE_WRITE			0x82000031
+#define FN_JTAG_ON			0x82000040
+#define FN_JTAG_OFF			0x82000041
+#define FN_CHIP_ID			0x82000044
 #define FN_USB_BOOT_FUNC		0x82000043
 #define FN_CHIP_ID			0x82000044
 
@@ -99,6 +102,19 @@ int meson_sm_set_usb_boot(unsigned int func)
 	return 0;
 }
 
+int meson_sm_setup_jtag(bool enable, unsigned int state)
+{
+	struct pt_regs regs;
+
+	regs.regs[0] = enable ? FN_JTAG_ON : FN_JTAG_OFF;
+	regs.regs[1] = state;
+	regs.regs[2] = 0;
+
+	smc_call(&regs);
+
+	return 0;
+}
+
 static int do_sm_serial(cmd_tbl_t *cmdtp, int flag, int argc,
 			char *const argv[])
 {
@@ -132,6 +148,34 @@ static int do_sm_usb_boot(cmd_tbl_t *cmdtp, int flag, int argc,
 	return CMD_RET_SUCCESS;
 }
 
+static int do_sm_jtag(cmd_tbl_t *cmdtp, int flag, int argc,
+		      char *const argv[])
+{
+	int ret;
+	int state = 0;
+
+	if (argc < 2)
+		return CMD_RET_USAGE;
+
+	if (strcmp(argv[1], "enable") && strcmp(argv[1], "disable"))
+		return CMD_RET_USAGE;
+
+	if (!strcmp(argv[1], "enable")) {
+		if (argc < 3) {
+			printf("enable command needs a state parameter\n");
+			return CMD_RET_FAILURE;
+		}
+		state = simple_strtoul(argv[2], NULL, 0);
+	}
+
+	ret = meson_sm_setup_jtag(!strcmp(argv[1], "enable") ? true : false,
+				  state);
+	if (ret)
+		return CMD_RET_FAILURE;
+
+	return CMD_RET_SUCCESS;
+}
+
 static int do_efuse(cmd_tbl_t *cmdtp, int flag, int argc,
 		    char *const argv[])
 {
@@ -155,6 +199,7 @@ static int do_efuse(cmd_tbl_t *cmdtp, int flag, int argc,
 static cmd_tbl_t cmd_sm_sub[] = {
 	U_BOOT_CMD_MKENT(serial, 1, 1, do_sm_serial, "", ""),
 	U_BOOT_CMD_MKENT(usb_boot, 2, 1, do_sm_usb_boot, "", ""),
+	U_BOOT_CMD_MKENT(jtag, 2, 2, do_sm_jtag, "", ""),
 };
 
 static int do_sm(cmd_tbl_t *cmdtp, int flag, int argc,
@@ -187,5 +232,6 @@ U_BOOT_CMD(
 	sm, 5, 0, do_sm,
 	"Secure Monitor Control",
 	"serial <address> - read chip unique id to memory address\n"
-	"sm usb_boot <func> - setup usb boot mode for next boot"
+	"sm usb_boot <func> - setup usb boot mode for next boot\n"
+	"sm jtag enable/disable [state] - enable of disable JTAG interface state"
 );
