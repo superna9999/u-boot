@@ -98,6 +98,14 @@ struct meson_bank {
 		.bit = b,						\
 	 }
 
+#define GROUP_NOCONF(grp)						\
+	{								\
+		.name = #grp,						\
+		.pins = grp ## _pins,					\
+		.num_pins = ARRAY_SIZE(grp ## _pins),			\
+		.is_gpio = true,					\
+	 }
+
 #define GPIO_GROUP(gpio, b)						\
 	{								\
 		.name = #gpio,						\

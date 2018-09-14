@@ -179,6 +179,9 @@
 };
 
 &pinctrl_periphs {
+	pinctrl-0 = <&jtag_ao_pins>;
+	pinctrl-names = "default";
+
 	gpio-line-names = /* Bank GPIOZ */
 			  "", "", "", "", "", "", "",
 			  "", "", "", "", "", "", "",

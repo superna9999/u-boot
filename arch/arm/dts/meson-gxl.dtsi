@@ -237,6 +237,13 @@
 				function = "cec_ao";
 			};
 		};
+
+		jtag_ao_pins: jtag_ao {
+			mux {
+				groups = "jtag_ao";
+				function = "jtag_oa";
+			};
+		};
 	};
 };
 

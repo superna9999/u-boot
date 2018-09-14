@@ -125,6 +125,19 @@ static const unsigned int i2s_out_ch23_z_pins[]	= { PIN(GPIOZ_5, EE_OFF) };
 static const unsigned int i2s_out_ch45_z_pins[]	= { PIN(GPIOZ_6, EE_OFF) };
 static const unsigned int i2s_out_ch67_z_pins[]	= { PIN(GPIOZ_7, EE_OFF) };
 
+static const unsigned int i2s_ao_clk_in_pins[]	= { PIN(GPIOH_7, EE_OFF) };
+static const unsigned int i2s_lr_clk_in_pins[]	= { PIN(GPIOH_8, EE_OFF) };
+
+static const unsigned int tsin_clk_b_pins[]	= { PIN(GPIOH_6, EE_OFF) };
+static const unsigned int tsin_d0_b_pins[]	= { PIN(GPIOH_7, EE_OFF) };
+static const unsigned int tsin_sop_b_pins[]	= { PIN(GPIOH_8, EE_OFF) };
+static const unsigned int tsin_d_valid_b_pins[]	= { PIN(GPIOH_9, EE_OFF) };
+
+static const unsigned int jtag_ao_pins[]	= { PIN(GPIOH_6, EE_OFF),
+						    PIN(GPIOH_7, EE_OFF), 
+						    PIN(GPIOH_8, EE_OFF), 
+						    PIN(GPIOH_9, EE_OFF) };
+
 static const unsigned int spdif_out_h_pins[]	= { PIN(GPIOH_4, EE_OFF) };
 
 static const unsigned int eth_link_led_pins[]	= { PIN(GPIOZ_14, EE_OFF) };
@@ -345,11 +358,18 @@ static struct meson_pmx_group meson_gxl_periphs_groups[] = {
 	GROUP(hdmi_hpd,		6,	31),
 	GROUP(hdmi_sda,		6,	30),
 	GROUP(hdmi_scl,		6,	29),
+	GROUP(spdif_out_h,	6,	28),
 	GROUP(i2s_am_clk,	6,	26),
 	GROUP(i2s_out_ao_clk,	6,	25),
 	GROUP(i2s_out_lr_clk,	6,	24),
 	GROUP(i2s_out_ch01,	6,	23),
-	GROUP(spdif_out_h,	6,	28),
+	GROUP(i2s_ao_clk_in,	6,	22),
+	GROUP(i2s_lr_clk_in,	6,	21),
+	GROUP(tsin_clk_b,	6,	20),
+	GROUP(tsin_d0_b,	6,	19),
+	GROUP(tsin_sop_b,	6,	18),
+	GROUP(tsin_d_valid_b,	6,	17),
+	GROUP_NOCONF(jtag_ao),
 
 	/* Bank DV */
 	GROUP(uart_tx_b,	2,	16),
@@ -582,6 +602,10 @@ static const char * const tsin_a_groups[] = {
 	"tsin_a_dp", "tsin_a_fail",
 };
 
+static const char * const jtag_ao_groups[] = {
+	"jtag_ao",
+};
+
 static const char * const gpio_aobus_groups[] = {
 	"GPIOAO_0", "GPIOAO_1", "GPIOAO_2", "GPIOAO_3", "GPIOAO_4",
 	"GPIOAO_5", "GPIOAO_6", "GPIOAO_7", "GPIOAO_8", "GPIOAO_9",
@@ -657,6 +681,7 @@ static struct meson_pmx_func meson_gxl_periphs_functions[] = {
 	FUNCTION(spdif_out),
 	FUNCTION(eth_led),
 	FUNCTION(tsin_a),
+	FUNCTION(jtag_ao),
 };
 
 static struct meson_pmx_func meson_gxl_aobus_functions[] = {
