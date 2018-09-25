@@ -39,12 +39,19 @@
 
 #include <config_distro_bootcmd.h>
 
+#ifdef PREBOOT_COMMAND
+#define CONFIG_PREBOOT		/* enable preboot variable */
+#else
+#define PREBOOT_COMMAND
+#endif
+
 #define CONFIG_EXTRA_ENV_SETTINGS \
 	"fdt_addr_r=0x01000000\0" \
 	"scriptaddr=0x1f000000\0" \
 	"kernel_addr_r=0x01080000\0" \
 	"pxefile_addr_r=0x01080000\0" \
 	"ramdisk_addr_r=0x13000000\0" \
+	PREBOOT_COMMAND	\
 	MESON_FDTFILE_SETTING \
 	BOOTENV
 

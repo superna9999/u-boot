@@ -13,6 +13,8 @@
 
 #define MESON_FDTFILE_SETTING "fdtfile=amlogic/meson-gxl-s905x-libretech-cc.dtb\0"
 
+#define PREBOOT_COMMAND	"preboot=sm jtag enable 2\0"
+
 #include <configs/meson-gx-common.h>
 
 #endif /* __CONFIG_H */
