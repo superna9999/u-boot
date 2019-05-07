@@ -83,6 +83,7 @@
 	"stdout=" STDOUT_CFG "\0" \
 	"stderr=" STDOUT_CFG "\0" \
 	"fdt_addr_r=0x08008000\0" \
+	"fdtoverlay_addr_r=0x08078000\0" \
 	"scriptaddr=0x08000000\0" \
 	"kernel_addr_r=0x08080000\0" \
 	"pxefile_addr_r=0x01080000\0" \
