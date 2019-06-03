@@ -1,0 +1,5 @@
+W400
+M:	Neil Armstrong <narmstrong@baylibre.com>
+S:	Maintained
+F:	board/amlogic/w400/
+F:	configs/odroid-n2_defconfig
