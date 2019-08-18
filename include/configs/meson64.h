@@ -16,6 +16,11 @@
 #define GICC_BASE			0xc4302000
 #endif
 
+/* USB */
+#if defined(CONFIG_MESON_GXBB)
+#define CONFIG_DWC2_UTMI_WIDTH		16
+#endif
+
 /* For splashscreen */
 #ifdef CONFIG_DM_VIDEO
 #define CONFIG_VIDEO_BMP_RLE8
