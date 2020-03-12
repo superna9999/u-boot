@@ -5,3 +5,12 @@
  */
 
 #include "meson-gx-u-boot.dtsi"
+
+&sd_emmc_c {
+	status = "okay";
+	pinctrl-0 = <&emmc_pins>;
+};
+
+&spifc {
+	status = "enabled";
+};
