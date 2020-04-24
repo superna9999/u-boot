@@ -6,3 +6,4 @@ F:	board/amlogic/w400/
 F:	configs/khadas-vim3_defconfig
 F:	configs/khadas-vim3l_defconfig
 F:	configs/odroid-n2_defconfig
+F:	configs/odroid-c4_defconfig
