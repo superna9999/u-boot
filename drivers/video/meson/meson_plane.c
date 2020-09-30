@@ -98,6 +98,14 @@ meson_vpp_disable_interlace_vscaler_osd1(struct meson_vpu_priv *priv)
 	writel(0, priv->io_base + _REG(VPP_OSD_HSC_CTRL0));
 }
 
+static u32 meson_axg_line_stride(u32 stride)
+{
+	u32 bwidth = stride >> 2;
+	u32 line_stride = ((bwidth << 5) + 127) >> 7;
+
+	return ((line_stride + 1) >> 1) << 1;
+}
+
 void meson_vpu_setup_plane(struct udevice *dev, bool is_interlaced)
 {
 	struct video_uc_plat *uc_plat = dev_get_uclass_plat(dev);
@@ -145,12 +153,19 @@ void meson_vpu_setup_plane(struct udevice *dev, bool is_interlaced)
 	/* uc_plat->base is the framebuffer */
 
 	/* Enable OSD and BLK0, set max global alpha */
-	osd1_ctrl_stat = OSD_ENABLE | (0xFF << OSD_GLOBAL_ALPHA_SHIFT) |
-			 OSD_BLK0_ENABLE;
+	osd1_ctrl_stat = OSD_ENABLE | OSD_BLK0_ENABLE;
+
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		osd1_ctrl_stat |= 0x100 << OSD_GLOBAL_ALPHA_SHIFT;
+	else
+		osd1_ctrl_stat |= 0xFF << OSD_GLOBAL_ALPHA_SHIFT;
 
 	/* Set up BLK0 to point to the right canvas */
-	osd1_blk0_cfg[0] = ((MESON_CANVAS_ID_OSD1 << OSD_CANVAS_SEL) |
-			   OSD_ENDIANNESS_LE);
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		osd1_blk0_cfg[0] = (0x40 << OSD_CANVAS_SEL) | OSD_ENDIANNESS_LE;
+	else
+		osd1_blk0_cfg[0] = ((MESON_CANVAS_ID_OSD1 << OSD_CANVAS_SEL) |
+				OSD_ENDIANNESS_LE);
 
 	/* On GXBB, Use the old non-HDR RGB2YUV converter */
 	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXBB))
@@ -188,15 +203,21 @@ void meson_vpu_setup_plane(struct udevice *dev, bool is_interlaced)
 	writel(osd1_blk0_cfg[4], priv->io_base + _REG(VIU_OSD1_BLK0_CFG_W4));
 
 	/* If output is interlace, make use of the Scaler */
-	if (osd1_interlace)
+	if (!meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG) && osd1_interlace)
 		meson_vpp_setup_interlace_vscaler_osd1(priv, uc_priv);
 	else
 		meson_vpp_disable_interlace_vscaler_osd1(priv);
 
-	meson_canvas_setup(priv, MESON_CANVAS_ID_OSD1,
-			   uc_plat->base, uc_priv->xsize * 4,
-			   uc_priv->ysize, MESON_CANVAS_WRAP_NONE,
-			   MESON_CANVAS_BLKMODE_LINEAR);
+	/* AXG doesn't use CANVAS since it support a single plane */
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG)) {
+		writel(uc_plat->base, priv->io_base + _REG(VIU_OSD1_BLK1_CFG_W4));
+		writel(meson_axg_line_stride(uc_priv->xsize * 4),
+		       priv->io_base + _REG(VIU_OSD1_BLK2_CFG_W4));
+	} else
+		meson_canvas_setup(priv, MESON_CANVAS_ID_OSD1,
+				uc_plat->base, uc_priv->xsize * 4,
+				uc_priv->ysize, MESON_CANVAS_WRAP_NONE,
+				MESON_CANVAS_BLKMODE_LINEAR);
 
 	/* Enable OSD1 */
 	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_G12A)) {

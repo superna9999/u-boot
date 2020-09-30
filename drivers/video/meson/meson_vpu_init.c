@@ -419,7 +419,8 @@ void meson_vpu_init(struct udevice *dev)
 	writel(0, priv->io_base + _REG(VENC_INTCTRL));
 
 	/* set dummy data default YUV black */
-	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXL)) {
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXL) ||
+	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG)) {
 		writel(0x108080, priv->io_base + _REG(VPP_DUMMY_DATA1));
 	} else if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXM)) {
 		writel_bits(0xff << 16, 0xff << 16,
@@ -435,6 +436,8 @@ void meson_vpu_init(struct udevice *dev)
 	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_G12A))
 		writel(VPP_OFIFO_SIZE_DEFAULT,
 		       priv->io_base + _REG(VPP_OFIFO_SIZE));
+	else if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		writel_bits(VPP_OFIFO_SIZE_MASK, 0x400, priv->io_base + _REG(VPP_OFIFO_SIZE));
 	else
 		writel_bits(VPP_OFIFO_SIZE_MASK, 0x77f,
 			    priv->io_base + _REG(VPP_OFIFO_SIZE));
@@ -496,18 +499,47 @@ void meson_vpu_init(struct udevice *dev)
 
 	/* On GXL/GXM, Use the 10bit HDR conversion matrix */
 	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXM) ||
-	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXL))
+	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXL) ||
+	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
 		meson_viu_load_matrix(priv);
 	else if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_G12A))
 		meson_viu_set_g12a_osd1_matrix(priv, RGB709_to_YUV709l_coeff,
 					       true);
 
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG)) {
+		writel_bits(BIT(0), BIT(0), priv->io_base + _REG(VPP_MATRIX_CTRL));
+		writel_bits(0x3 << 8, 0, priv->io_base + _REG(VPP_MATRIX_CTRL));
+
+		writel(0x0fc00e00, priv->io_base + _REG(VPP_MATRIX_PRE_OFFSET0_1));
+		writel(0x00000e00, priv->io_base + _REG(VPP_MATRIX_PRE_OFFSET2));
+
+		/*
+		 * ycbcr limit range, 709 to RGB
+		 * -16      1.164  0      1.793  0
+		 * -128     1.164 -0.213 -0.534  0
+		 * -128     1.164  2.115  0      0
+		 */
+		writel(0x04a80000, priv->io_base + _REG(VPP_MATRIX_COEF00_01));
+		writel(0x072c04a8, priv->io_base + _REG(VPP_MATRIX_COEF02_10));
+		writel(0x1f261ddd, priv->io_base + _REG(VPP_MATRIX_COEF11_12));
+		writel(0x04a80876, priv->io_base + _REG(VPP_MATRIX_COEF20_21));
+		writel(0x0, priv->io_base + _REG(VPP_MATRIX_COEF22));
+		writel(0x0, priv->io_base + _REG(VPP_MATRIX_OFFSET0_1));
+		writel(0x0, priv->io_base + _REG(VPP_MATRIX_OFFSET2));
+
+		writel_bits(0x1f << 3, 0, priv->io_base + _REG(VPP_MATRIX_CLIP));
+	}
+
 	/* Initialize OSD1 fifo control register */
 	reg = VIU_OSD_DDR_PRIORITY_URGENT |
-		VIU_OSD_HOLD_FIFO_LINES(4) |
 		VIU_OSD_FIFO_DEPTH_VAL(32) | /* fifo_depth_val: 32*8=256 */
 		VIU_OSD_WORDS_PER_BURST(4) | /* 4 words in 1 burst */
 		VIU_OSD_FIFO_LIMITS(2);      /* fifo_lim: 2*16=32 */
+
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		reg |= VIU_OSD_HOLD_FIFO_LINES(24);
+	else
+		reg |= VIU_OSD_HOLD_FIFO_LINES(4);
 
 	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_G12A))
 		reg |= meson_viu_osd_burst_length_reg(32);

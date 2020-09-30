@@ -31,7 +31,7 @@ static struct meson_framebuffer {
 	u64 fb_size;
 	unsigned int xsize;
 	unsigned int ysize;
-	bool is_cvbs;
+	enum vpu_pipeline pipeline;
 } meson_fb = { 0 };
 
 bool meson_vpu_is_compatible(struct meson_vpu_priv *priv,
@@ -42,18 +42,35 @@ bool meson_vpu_is_compatible(struct meson_vpu_priv *priv,
 	return compat == family;
 }
 
+static enum vpu_pipeline get_disp_pipeline(struct udevice *disp)
+{
+	if (!strcmp(disp->driver->name, "meson_dw_hdmi"))
+		return VPU_PIPELINE_HDMI;
+
+	if (!strcmp(disp->driver->name, "meson_dw_mipi_dsi"))
+		return VPU_PIPELINE_DSI;
+
+	return VPU_PIPELINE_NONE;
+}
+
 static int meson_vpu_setup_mode(struct udevice *dev, struct udevice *disp)
 {
 	struct video_uc_plat *uc_plat = dev_get_uclass_plat(dev);
 	struct video_priv *uc_priv = dev_get_uclass_priv(dev);
+	struct meson_vpu_priv *priv = dev_get_priv(dev);
 	struct display_timing timing;
-	bool is_cvbs = false;
+	enum vpu_pipeline pipeline = VPU_PIPELINE_NONE;
 	int ret = 0;
 
-	if (disp) {
+	if (disp)
+		pipeline = get_disp_pipeline(disp);
+
+	if (disp && pipeline != VPU_PIPELINE_NONE) {
+
 		ret = display_read_timing(disp, &timing);
 		if (ret) {
 			debug("%s: Failed to read timings\n", __func__);
+			pipeline = VPU_PIPELINE_NONE;
 			goto cvbs;
 		}
 
@@ -62,19 +79,24 @@ static int meson_vpu_setup_mode(struct udevice *dev, struct udevice *disp)
 
 		ret = display_enable(disp, 0, &timing);
 		if (ret)
-			goto cvbs;
-	} else {
+			pipeline = VPU_PIPELINE_NONE;
+	}
 cvbs:
+
+	if (!meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG)) {
 		/* CVBS has a fixed 720x480i (NTSC) and 720x576i (PAL) */
-		is_cvbs = true;
+		pipeline = VPU_PIPELINE_CVBS;
 		timing.flags = DISPLAY_FLAGS_INTERLACED;
 		uc_priv->xsize = 720;
 		uc_priv->ysize = 576;
 	}
 
+	if (pipeline == VPU_PIPELINE_NONE)
+		return -ENODEV;
+
 	uc_priv->bpix = VPU_MAX_LOG2_BPP;
 
-	meson_fb.is_cvbs = is_cvbs;
+	meson_fb.pipeline = pipeline;
 	meson_fb.xsize = uc_priv->xsize;
 	meson_fb.ysize = uc_priv->ysize;
 
@@ -89,8 +111,8 @@ cvbs:
 	uc_plat->base = meson_fb.base;
 
 	meson_vpu_setup_plane(dev, timing.flags & DISPLAY_FLAGS_INTERLACED);
-	meson_vpu_setup_venc(dev, &timing, is_cvbs);
-	meson_vpu_setup_vclk(dev, &timing, is_cvbs);
+	meson_vpu_setup_venc(dev, &timing, pipeline);
+	meson_vpu_setup_vclk(dev, &timing, pipeline);
 
 	video_set_flush_dcache(dev, 1);
 
@@ -101,6 +123,7 @@ static const struct udevice_id meson_vpu_ids[] = {
 	{ .compatible = "amlogic,meson-gxbb-vpu", .data = VPU_COMPATIBLE_GXBB },
 	{ .compatible = "amlogic,meson-gxl-vpu", .data = VPU_COMPATIBLE_GXL },
 	{ .compatible = "amlogic,meson-gxm-vpu", .data = VPU_COMPATIBLE_GXM },
+	{ .compatible = "amlogic,meson-axg-vpu", .data = VPU_COMPATIBLE_AXG },
 	{ .compatible = "amlogic,meson-g12a-vpu", .data = VPU_COMPATIBLE_G12A },
 	{ }
 };
@@ -125,9 +148,11 @@ static int meson_vpu_probe(struct udevice *dev)
 	if (!priv->hhi_base)
 		return -EINVAL;
 
-	priv->dmc_base = dev_remap_addr_index(dev, 2);
-	if (!priv->dmc_base)
-		return -EINVAL;
+	if (!meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG)) {
+		priv->dmc_base = dev_remap_addr_index(dev, 2);
+		if (!priv->dmc_base)
+			return -EINVAL;
+	}
 
 	meson_vpu_init(dev);
 
@@ -154,9 +179,9 @@ static void meson_vpu_setup_simplefb(void *fdt)
 	u64 mem_start, mem_size;
 	int offset, ret;
 
-	if (meson_fb.is_cvbs)
+	if (meson_fb.pipeline == VPU_PIPELINE_CVBS)
 		pipeline = "vpu-cvbs";
-	else
+	else if (meson_fb.pipeline == VPU_PIPELINE_HDMI)
 		pipeline = "vpu-hdmi";
 
 	offset = meson_simplefb_fdt_match(fdt, pipeline);
