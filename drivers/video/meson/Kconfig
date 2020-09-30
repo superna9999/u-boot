@@ -8,5 +8,7 @@ config VIDEO_MESON
 	bool "Enable Amlogic Meson video support"
 	depends on VIDEO
 	select DISPLAY
+	select VIDEO_DW_MIPI_DSI if MESON_G12A
+	select MIPI_DPHY_HELPERS if MESON_G12A
 	help
 	  Enable Amlogic Meson Video Processing Unit video support.

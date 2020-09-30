@@ -12,6 +12,7 @@
 #include <fdtdec.h>
 #include <log.h>
 #include <asm/io.h>
+#include <linux/iopoll.h>
 #include "meson_vpu.h"
 
 enum {
@@ -1558,13 +1559,239 @@ static void meson_venci_cvbs_mode_set(struct meson_vpu_priv *priv,
 		hhi_write(HHI_VDAC_CNTL1, 0);
 }
 
+
+static unsigned short meson_encl_gamma_table[256] = {
+	0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60,
+	64, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116, 120, 124,
+	128, 132, 136, 140, 144, 148, 152, 156, 160, 164, 168, 172, 176, 180, 184, 188,
+	192, 196, 200, 204, 208, 212, 216, 220, 224, 228, 232, 236, 240, 244, 248, 252,
+	256, 260, 264, 268, 272, 276, 280, 284, 288, 292, 296, 300, 304, 308, 312, 316,
+	320, 324, 328, 332, 336, 340, 344, 348, 352, 356, 360, 364, 368, 372, 376, 380,
+	384, 388, 392, 396, 400, 404, 408, 412, 416, 420, 424, 428, 432, 436, 440, 444,
+	448, 452, 456, 460, 464, 468, 472, 476, 480, 484, 488, 492, 496, 500, 504, 508,
+	512, 516, 520, 524, 528, 532, 536, 540, 544, 548, 552, 556, 560, 564, 568, 572,
+	576, 580, 584, 588, 592, 596, 600, 604, 608, 612, 616, 620, 624, 628, 632, 636,
+	640, 644, 648, 652, 656, 660, 664, 668, 672, 676, 680, 684, 688, 692, 696, 700,
+	704, 708, 712, 716, 720, 724, 728, 732, 736, 740, 744, 748, 752, 756, 760, 764,
+	768, 772, 776, 780, 784, 788, 792, 796, 800, 804, 808, 812, 816, 820, 824, 828,
+	832, 836, 840, 844, 848, 852, 856, 860, 864, 868, 872, 876, 880, 884, 888, 892,
+	896, 900, 904, 908, 912, 916, 920, 924, 928, 932, 936, 940, 944, 948, 952, 956,
+	960, 964, 968, 972, 976, 980, 984, 988, 992, 996, 1000, 1004, 1008, 1012, 1016, 1020,
+};
+
+#define GAMMA_VCOM_POL    7     /* RW */
+#define GAMMA_RVS_OUT     6     /* RW */
+#define ADR_RDY           5     /* Read Only */
+#define WR_RDY            4     /* Read Only */
+#define RD_RDY            3     /* Read Only */
+#define GAMMA_TR          2     /* RW */
+#define GAMMA_SET         1     /* RW */
+#define GAMMA_EN          0     /* RW */
+
+#define H_RD              12
+#define H_AUTO_INC        11
+#define H_SEL_R           10
+#define H_SEL_G           9
+#define H_SEL_B           8
+#define HADR_MSB          7            /* 7:0 */
+#define HADR              0            /* 7:0 */
+
+#define GAMMA_RETRY       1000
+
+static void meson_encl_set_gamma_table(struct meson_vpu_priv *priv, u16 *data,
+				       u32 rgb_mask)
+{
+	int i, ret;
+	u32 reg;
+
+	writel_bits(BIT(GAMMA_EN), 0, priv->io_base + _REG(L_GAMMA_CNTL_PORT));
+
+	ret = readl_poll_timeout(priv->io_base + _REG(L_GAMMA_CNTL_PORT),
+				 reg, reg & BIT(ADR_RDY), 10000);
+	if (ret)
+		printf("%s: GAMMA ADR_RDY timeout\n", __func__);
+
+	writel(BIT(H_AUTO_INC) | BIT(rgb_mask) | (0 << HADR),
+		priv->io_base + _REG(L_GAMMA_ADDR_PORT));
+
+	for (i = 0; i < 256; i++) {
+		ret = readl_poll_timeout(priv->io_base + _REG(L_GAMMA_CNTL_PORT),
+					 reg, reg & BIT(WR_RDY), 10000);
+		if (ret)
+			printf("%s: GAMMA WR_RDY timeout\n", __func__);
+
+		writel(data[i], priv->io_base + _REG(L_GAMMA_DATA_PORT));
+	}
+
+	ret = readl_poll_timeout(priv->io_base + _REG(L_GAMMA_CNTL_PORT),
+				 reg, reg & BIT(ADR_RDY), 10000);
+	if (ret)
+		printf("%s: GAMMA ADR_RDY timeout\n", __func__);
+
+	writel(BIT(H_AUTO_INC) | BIT(rgb_mask) | (0x23 << HADR),
+		priv->io_base + _REG(L_GAMMA_ADDR_PORT));
+}
+
+void meson_encl_load_gamma(struct meson_vpu_priv *priv)
+{
+	meson_encl_set_gamma_table(priv, meson_encl_gamma_table, H_SEL_R);
+	meson_encl_set_gamma_table(priv, meson_encl_gamma_table, H_SEL_G);
+	meson_encl_set_gamma_table(priv, meson_encl_gamma_table, H_SEL_B);
+
+	writel_bits(BIT(GAMMA_EN), BIT(GAMMA_EN), priv->io_base + _REG(L_GAMMA_CNTL_PORT));
+}
+
+static void meson_venc_mipi_dsi_mode_set(struct meson_vpu_priv *priv,
+				  	 const struct display_timing *mode)
+{
+	unsigned int max_pxcnt;
+	unsigned int max_lncnt;
+	unsigned int havon_begin;
+	unsigned int havon_end;
+	unsigned int vavon_bline;
+	unsigned int vavon_eline;
+	unsigned int hso_begin;
+	unsigned int hso_end;
+	unsigned int vso_begin;
+	unsigned int vso_end;
+	unsigned int vso_bline;
+	unsigned int vso_eline;
+
+	max_pxcnt = mode->hactive.typ +
+		mode->hfront_porch.typ +
+		mode->hback_porch.typ +
+		mode->hsync_len.typ - 1;
+	max_lncnt = mode->vactive.typ +
+		mode->vfront_porch.typ +
+		mode->vback_porch.typ +
+		mode->vsync_len.typ - 1;
+	havon_begin = mode->hback_porch.typ +
+		mode->hsync_len.typ;
+	havon_end = havon_begin + mode->hactive.typ - 1;
+	vavon_bline = mode->vback_porch.typ +
+		mode->vsync_len.typ;
+	vavon_eline = vavon_bline + mode->vactive.typ - 1;
+	hso_begin = 0;
+	hso_end = mode->hsync_len.typ;
+	vso_begin = 0;
+	vso_end = 0;
+	vso_bline = 0;
+	vso_eline = mode->vsync_len.typ;
+
+	meson_vpp_setup_mux(priv, MESON_VIU_VPP_MUX_ENCL);
+
+	writel(0, priv->io_base + _REG(ENCL_VIDEO_EN));
+
+	writel(0x8000, priv->io_base + _REG(ENCL_VIDEO_MODE));
+	writel(0x0418, priv->io_base + _REG(ENCL_VIDEO_MODE_ADV));
+
+	writel(0x1000, priv->io_base + _REG(ENCL_VIDEO_FILT_CTRL));
+	writel(max_pxcnt, priv->io_base + _REG(ENCL_VIDEO_MAX_PXCNT));
+	writel(max_lncnt, priv->io_base + _REG(ENCL_VIDEO_MAX_LNCNT));
+	writel(havon_begin, priv->io_base + _REG(ENCL_VIDEO_HAVON_BEGIN));
+	writel(havon_end, priv->io_base + _REG(ENCL_VIDEO_HAVON_END));
+	writel(vavon_bline, priv->io_base + _REG(ENCL_VIDEO_VAVON_BLINE));
+	writel(vavon_eline, priv->io_base + _REG(ENCL_VIDEO_VAVON_ELINE));
+
+	writel(hso_begin, priv->io_base + _REG(ENCL_VIDEO_HSO_BEGIN));
+	writel(hso_end, priv->io_base + _REG(ENCL_VIDEO_HSO_END));
+	writel(vso_begin, priv->io_base + _REG(ENCL_VIDEO_VSO_BEGIN));
+	writel(vso_end, priv->io_base + _REG(ENCL_VIDEO_VSO_END));
+	writel(vso_bline, priv->io_base + _REG(ENCL_VIDEO_VSO_BLINE));
+	writel(vso_eline, priv->io_base + _REG(ENCL_VIDEO_VSO_ELINE));
+	writel(3, priv->io_base + _REG(ENCL_VIDEO_RGBIN_CTRL));
+
+	/* default black pattern */
+	writel(0, priv->io_base + _REG(ENCL_TST_MDSEL));
+	writel(0, priv->io_base + _REG(ENCL_TST_Y));
+	writel(0, priv->io_base + _REG(ENCL_TST_CB));
+	writel(0, priv->io_base + _REG(ENCL_TST_CR));
+	writel(1, priv->io_base + _REG(ENCL_TST_EN));
+	writel_bits(BIT(3), 0, priv->io_base + _REG(ENCL_VIDEO_MODE_ADV));
+
+	writel(1, priv->io_base + _REG(ENCL_VIDEO_EN));
+
+	writel(0, priv->io_base + _REG(L_RGB_BASE_ADDR));
+	writel(0x400, priv->io_base + _REG(L_RGB_COEFF_ADDR));
+	writel(0x400, priv->io_base + _REG(L_DITH_CNTL_ADDR));
+
+	/* DE signal for TTL */
+	writel(havon_begin, priv->io_base + _REG(L_OEH_HS_ADDR));
+	writel(havon_end + 1, priv->io_base + _REG(L_OEH_HE_ADDR));
+	writel(vavon_bline, priv->io_base + _REG(L_OEH_VS_ADDR));
+	writel(vavon_eline, priv->io_base + _REG(L_OEH_VE_ADDR));
+
+	/* DE signal for TTL */
+	writel(havon_begin, priv->io_base + _REG(L_OEV1_HS_ADDR));
+	writel(havon_end + 1, priv->io_base + _REG(L_OEV1_HE_ADDR));
+	writel(vavon_bline, priv->io_base + _REG(L_OEV1_VS_ADDR));
+	writel(vavon_eline, priv->io_base + _REG(L_OEV1_VE_ADDR));
+
+	/* Hsync signal for TTL */
+	if (mode->flags & DISPLAY_FLAGS_HSYNC_HIGH) {
+		writel(hso_end, priv->io_base + _REG(L_STH1_HS_ADDR));
+		writel(hso_begin, priv->io_base + _REG(L_STH1_HE_ADDR));
+	} else {
+		writel(hso_begin, priv->io_base + _REG(L_STH1_HS_ADDR));
+		writel(hso_end, priv->io_base + _REG(L_STH1_HE_ADDR));
+	}
+	writel(0, priv->io_base + _REG(L_STH1_VS_ADDR));
+	writel(max_lncnt, priv->io_base + _REG(L_STH1_VE_ADDR));
+
+	/* Vsync signal for TTL */
+	writel(vso_begin, priv->io_base + _REG(L_STV1_HS_ADDR));
+	writel(vso_end, priv->io_base + _REG(L_STV1_HE_ADDR));
+	if (mode->flags & DISPLAY_FLAGS_VSYNC_HIGH) {
+		writel(vso_eline, priv->io_base + _REG(L_STV1_VS_ADDR));
+		writel(vso_bline, priv->io_base + _REG(L_STV1_VE_ADDR));
+	} else {
+		writel(vso_bline, priv->io_base + _REG(L_STV1_VS_ADDR));
+		writel(vso_eline, priv->io_base + _REG(L_STV1_VE_ADDR));
+	}
+
+	/* DE signal */
+	writel(havon_begin, priv->io_base + _REG(L_DE_HS_ADDR));
+	writel(havon_end + 1, priv->io_base + _REG(L_DE_HE_ADDR));
+	writel(vavon_bline, priv->io_base + _REG(L_DE_VS_ADDR));
+	writel(vavon_eline, priv->io_base + _REG(L_DE_VE_ADDR));
+
+	/* Hsync signal */
+	writel(hso_begin, priv->io_base + _REG(L_HSYNC_HS_ADDR));
+	writel(hso_end, priv->io_base + _REG(L_HSYNC_HE_ADDR));
+	writel(0, priv->io_base + _REG(L_HSYNC_VS_ADDR));
+	writel(max_lncnt, priv->io_base + _REG(L_HSYNC_VE_ADDR));
+
+	/* Vsync signal */
+	writel(vso_begin, priv->io_base + _REG(L_VSYNC_HS_ADDR));
+	writel(vso_end, priv->io_base + _REG(L_VSYNC_HE_ADDR));
+	writel(vso_bline, priv->io_base + _REG(L_VSYNC_VS_ADDR));
+	writel(vso_eline, priv->io_base + _REG(L_VSYNC_VE_ADDR));
+
+	writel(0, priv->io_base + _REG(L_INV_CNT_ADDR));
+	writel(BIT(4) | BIT(5), priv->io_base + _REG(L_TCON_MISC_SEL_ADDR));
+
+	meson_encl_load_gamma(priv);
+
+	writel_bits(BIT(3), BIT(3), priv->io_base + _REG(ENCL_VIDEO_MODE_ADV));
+	writel(0, priv->io_base + _REG(ENCL_TST_EN));
+}
+
 void meson_vpu_setup_venc(struct udevice *dev,
-			  const struct display_timing *mode, bool is_cvbs)
+			  const struct display_timing *mode, enum vpu_pipeline pipeline)
 {
 	struct meson_vpu_priv *priv = dev_get_priv(dev);
 
-	if (is_cvbs)
-		return meson_venci_cvbs_mode_set(priv, &meson_cvbs_enci_pal);
-
-	meson_venc_hdmi_mode_set(priv, mode);
+	switch (pipeline) {
+	case VPU_PIPELINE_CVBS:
+		meson_venci_cvbs_mode_set(priv, &meson_cvbs_enci_pal);
+		break;
+	case VPU_PIPELINE_HDMI:
+		meson_venc_hdmi_mode_set(priv, mode);
+		break;
+	case VPU_PIPELINE_DSI:
+		meson_venc_mipi_dsi_mode_set(priv, mode);
+		break;
+	default:
+		return;
+	}
 }

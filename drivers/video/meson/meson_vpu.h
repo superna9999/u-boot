@@ -29,6 +29,12 @@ enum vpu_compatible {
 	VPU_COMPATIBLE_G12A = 3,
 };
 
+enum vpu_pipeline {
+	VPU_PIPELINE_CVBS = 0,
+	VPU_PIPELINE_HDMI,
+	VPU_PIPELINE_DSI,
+};
+
 struct meson_vpu_priv {
 	struct udevice *dev;
 	void __iomem *io_base;
@@ -74,6 +80,8 @@ void meson_canvas_setup(struct meson_vpu_priv *priv,
 			unsigned int wrap,
 			unsigned int blkmode);
 
+/* Mux VIU/VPP to ENCL */
+#define MESON_VIU_VPP_MUX_ENCL	0x0
 /* Mux VIU/VPP to ENCI */
 #define MESON_VIU_VPP_MUX_ENCI	0x5
 /* Mux VIU/VPP to ENCP */
@@ -84,9 +92,9 @@ void meson_vpu_init(struct udevice *dev);
 void meson_vpu_setup_plane(struct udevice *dev, bool is_interlaced);
 bool meson_venc_hdmi_supported_mode(const struct display_timing *mode);
 void meson_vpu_setup_venc(struct udevice *dev,
-			  const struct display_timing *mode, bool is_cvbs);
+			  const struct display_timing *mode, enum vpu_pipeline pipeline);
 bool meson_vclk_dmt_supported_freq(struct meson_vpu_priv *priv,
 				   unsigned int freq);
 void meson_vpu_setup_vclk(struct udevice *dev,
-			  const struct display_timing *mode, bool is_cvbs);
+			  const struct display_timing *mode, enum vpu_pipeline pipeline);
 #endif

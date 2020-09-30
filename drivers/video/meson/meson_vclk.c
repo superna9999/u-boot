@@ -1005,17 +1005,24 @@ static void meson_vclk_setup(struct meson_vpu_priv *priv, unsigned int target,
 }
 
 void meson_vpu_setup_vclk(struct udevice *dev,
-			  const struct display_timing *mode, bool is_cvbs)
+			  const struct display_timing *mode, enum vpu_pipeline pipeline)
 {
 	struct meson_vpu_priv *priv = dev_get_priv(dev);
 	unsigned int vclk_freq;
 
-	if (is_cvbs)
+	switch (pipeline) {
+	case VPU_PIPELINE_CVBS:
 		return meson_vclk_setup(priv, MESON_VCLK_TARGET_CVBS,
 					0, 0, 0, false);
+	case VPU_PIPELINE_HDMI:
 
-	vclk_freq = mode->pixelclock.typ / 1000;
+		vclk_freq = mode->pixelclock.typ / 1000;
 
-	return meson_vclk_setup(priv, MESON_VCLK_TARGET_DMT,
-				vclk_freq, vclk_freq, vclk_freq, false);
+		return meson_vclk_setup(priv, MESON_VCLK_TARGET_DMT,
+					vclk_freq, vclk_freq, vclk_freq, false);
+	case VPU_PIPELINE_DSI:
+		/* Clock is managed from the glue driver */
+	default:
+		return;
+	}
 }
