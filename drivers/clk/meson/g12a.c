@@ -30,64 +30,6 @@
  * This driver is adapted to what is actually supported by U-Boot
  */
 
-/* Only the clocks ids we don't want to expose, such as the internal muxes
- * and dividers of composite clocks, will remain defined here.
- */
-#define CLKID_MPEG_SEL				8
-#define CLKID_MPEG_DIV				9
-#define CLKID_SD_EMMC_A_CLK0_SEL		63
-#define CLKID_SD_EMMC_A_CLK0_DIV		64
-#define CLKID_SD_EMMC_B_CLK0_SEL		65
-#define CLKID_SD_EMMC_B_CLK0_DIV		66
-#define CLKID_SD_EMMC_C_CLK0_SEL		67
-#define CLKID_SD_EMMC_C_CLK0_DIV		68
-#define CLKID_MPLL0_DIV				69
-#define CLKID_MPLL1_DIV				70
-#define CLKID_MPLL2_DIV				71
-#define CLKID_MPLL3_DIV				72
-#define CLKID_MPLL_PREDIV			73
-#define CLKID_FCLK_DIV2_DIV			75
-#define CLKID_FCLK_DIV3_DIV			76
-#define CLKID_FCLK_DIV4_DIV			77
-#define CLKID_FCLK_DIV5_DIV			78
-#define CLKID_FCLK_DIV7_DIV			79
-#define CLKID_FCLK_DIV2P5_DIV			100
-#define CLKID_FIXED_PLL_DCO			101
-#define CLKID_SYS_PLL_DCO			102
-#define CLKID_GP0_PLL_DCO			103
-#define CLKID_HIFI_PLL_DCO			104
-#define CLKID_VPU_0_DIV				111
-#define CLKID_VPU_1_DIV				114
-#define CLKID_VAPB_0_DIV			118
-#define CLKID_VAPB_1_DIV			121
-#define CLKID_HDMI_PLL_DCO			125
-#define CLKID_HDMI_PLL_OD			126
-#define CLKID_HDMI_PLL_OD2			127
-#define CLKID_VID_PLL_SEL			130
-#define CLKID_VID_PLL_DIV			131
-#define CLKID_VCLK_SEL				132
-#define CLKID_VCLK2_SEL				133
-#define CLKID_VCLK_INPUT			134
-#define CLKID_VCLK2_INPUT			135
-#define CLKID_VCLK_DIV				136
-#define CLKID_VCLK2_DIV				137
-#define CLKID_VCLK_DIV2_EN			140
-#define CLKID_VCLK_DIV4_EN			141
-#define CLKID_VCLK_DIV6_EN			142
-#define CLKID_VCLK_DIV12_EN			143
-#define CLKID_VCLK2_DIV2_EN			144
-#define CLKID_VCLK2_DIV4_EN			145
-#define CLKID_VCLK2_DIV6_EN			146
-#define CLKID_VCLK2_DIV12_EN			147
-#define CLKID_CTS_ENCI_SEL			158
-#define CLKID_CTS_ENCP_SEL			159
-#define CLKID_CTS_VDAC_SEL			160
-#define CLKID_HDMI_TX_SEL			161
-#define CLKID_HDMI_SEL				166
-#define CLKID_HDMI_DIV				167
-#define CLKID_MALI_0_DIV			170
-#define CLKID_MALI_1_DIV			173
-
 #define CLKID_XTAL				0x10000000
 
 #define XTAL_RATE 24000000
@@ -107,9 +49,7 @@ static ulong meson_clk_set_rate_by_id(struct clk *clk, unsigned long id,
 static ulong meson_mux_get_parent(struct clk *clk, unsigned long id);
 static ulong meson_clk_get_rate_by_id(struct clk *clk, unsigned long id);
 
-#define NUM_CLKS 178
-
-static struct meson_gate gates[NUM_CLKS] = {
+static struct meson_gate gates[] = {
 	/* Everything Else (EE) domain gates */
 	MESON_GATE(CLKID_SPICC0, HHI_GCLK_MPEG0, 8),
 	MESON_GATE(CLKID_I2C, HHI_GCLK_MPEG0, 9),
@@ -494,14 +434,16 @@ static ulong meson_mux_set_parent(struct clk *clk, unsigned long id,
 	int *parents;
 	int i;
 
-	if (IS_ERR_VALUE(cur_parent))
-		return cur_parent;
+	/* Ignore invalid cur_parent */
+	if (!IS_ERR_VALUE(cur_parent)) {
+		debug("%s: setting parent of %ld from %ld to %ld\n",
+				__func__, id, cur_parent, parent_id);
 
-	debug("%s: setting parent of %ld from %ld to %ld\n",
-	      __func__, id, cur_parent, parent_id);
-
-	if (cur_parent == parent_id)
-		return 0;
+		if (cur_parent == parent_id)
+			return 0;
+	} else
+		debug("%s: setting parent of %ld to %ld\n",
+				__func__, id, parent_id);
 
 	switch (id) {
 	case CLKID_VPU:
@@ -679,6 +621,16 @@ static struct parm meson_fixed_pll_parm[4] = {
 	{HHI_FIX_PLL_CNTL1, 0, 17}, /* pfrac */
 };
 
+static struct parm meson_gp0_pll_parm[7] = {
+	{HHI_GP0_PLL_CNTL0, 0, 8}, /* pm */
+	{HHI_GP0_PLL_CNTL0, 10, 5}, /* pn */
+	{HHI_GP0_PLL_CNTL0, 16, 3}, /* pod */
+	{HHI_GP0_PLL_CNTL1, 0, 17}, /* pfrac */
+	{HHI_GP0_PLL_CNTL0, 29, 1}, /* reset */
+	{HHI_GP0_PLL_CNTL0, 28, 1}, /* enable */
+	{HHI_GP0_PLL_CNTL0, 31, 1}, /* lock */
+};
+
 static struct parm meson_sys_pll_parm[3] = {
 	{HHI_SYS_PLL_CNTL0, 0, 9}, /* pm */
 	{HHI_SYS_PLL_CNTL0, 10, 5}, /* pn */
@@ -705,6 +657,12 @@ static ulong meson_pll_get_rate(struct clk *clk, unsigned long id)
 		pn = &meson_fixed_pll_parm[1];
 		pod = &meson_fixed_pll_parm[2];
 		pfrac = &meson_fixed_pll_parm[3];
+		break;
+	case CLKID_GP0_PLL:
+		pm = &meson_gp0_pll_parm[0];
+		pn = &meson_gp0_pll_parm[1];
+		pod = &meson_gp0_pll_parm[2];
+		pfrac = &meson_gp0_pll_parm[3];
 		break;
 	case CLKID_SYS_PLL:
 		pm = &meson_sys_pll_parm[0];
@@ -783,6 +741,7 @@ static ulong meson_clk_get_rate_by_id(struct clk *clk, unsigned long id)
 		rate = XTAL_RATE;
 		break;
 	case CLKID_FIXED_PLL:
+	case CLKID_GP0_PLL:
 	case CLKID_SYS_PLL:
 		rate = meson_pll_get_rate(clk, id);
 		break;
@@ -847,6 +806,9 @@ static ulong meson_clk_get_rate_by_id(struct clk *clk, unsigned long id)
 		rate = meson_mux_get_rate(clk, id);
 		break;
 	default:
+		if (id >= ARRAY_SIZE(gates))
+			return -ENOENT;
+
 		if (gates[id].reg != 0) {
 			/* a clock gate */
 			rate = meson_clk81_get_rate(clk);
@@ -862,6 +824,162 @@ static ulong meson_clk_get_rate_by_id(struct clk *clk, unsigned long id)
 static ulong meson_clk_get_rate(struct clk *clk)
 {
 	return meson_clk_get_rate_by_id(clk, clk->id);
+}
+
+static unsigned int meson_pll_get_m(struct clk *clk, unsigned long id, ulong vco_freq)
+{
+	switch (id) {
+	case CLKID_GP0_PLL:
+		return vco_freq / meson_clk_get_rate_by_id(clk, CLKID_XTAL);
+	}
+
+	return 0;
+}
+
+static unsigned int meson_pll_get_frac(struct clk *clk, unsigned long id,
+				       unsigned int m, ulong vco_freq)
+{
+	unsigned int parent_rate;
+	unsigned int frac_max;
+	unsigned int frac_m;
+	unsigned int frac;
+
+	switch (id) {
+	case CLKID_GP0_PLL:
+		frac_max = (1 << meson_gp0_pll_parm[3].width);
+		parent_rate = meson_clk_get_rate_by_id(clk, CLKID_XTAL);
+		break;
+	}
+
+	/* We can have a perfect match !*/
+	if (vco_freq / m == parent_rate &&
+	    vco_freq % m == 0)
+		return 0;
+
+	frac = mult_frac(vco_freq, frac_max, parent_rate);
+	frac_m = m * frac_max;
+	if (frac_m > frac)
+		return frac_max;
+	frac -= frac_m;
+
+	return min((u16)frac, (u16)(frac_max - 1));
+}
+
+static bool meson_pll_validate(struct clk *clk, unsigned long id,
+			       unsigned int m, unsigned int frac)
+{
+	unsigned int parent_rate, min_m, max_m, frac_max;
+
+	switch (id) {
+	case CLKID_GP0_PLL:
+		parent_rate = meson_clk_get_rate_by_id(clk, CLKID_XTAL);
+		frac_max = (1 << meson_gp0_pll_parm[3].width);
+		min_m = 125;
+		max_m = 255;
+		break;
+	}
+
+	if (m < min_m || m > max_m)
+		return false;
+
+	if (frac >= frac_max)
+		return false;
+
+	return true;
+}
+
+static bool meson_get_params(struct clk *clk, unsigned long id, ulong rate,
+			     unsigned int *od, unsigned int *m, unsigned int *frac)
+{
+	/* Cycle from /8 to /2 */
+	for (*od = 8 ; *od > 1 ; *od >>= 1) {
+		*m = meson_pll_get_m(clk, id, rate * *od);
+		if (!*m)
+			continue;
+
+		*frac = meson_pll_get_frac(clk, id, *m, rate * *od);
+
+		if (meson_pll_validate(clk, id, *m, *frac))
+			return true;
+	}
+
+	return false;
+}
+
+static inline unsigned int pll_od_to_reg(unsigned int od)
+{
+	switch (od) {
+	case 1:
+		return 0;
+	case 2:
+		return 1;
+	case 4:
+		return 2;
+	case 8:
+		return 3;
+	}
+
+	/* Invalid */
+	return 0;
+}
+
+static ulong meson_gp0_pll_set_rate(struct clk *clk, unsigned long id, ulong rate)
+{
+	struct meson_clk *priv = dev_get_priv(clk->dev);
+	struct parm *pm, *pn, *pod, *pfrac, *preset, *pen, *plock;
+	unsigned int od, m, frac;
+	unsigned int retries = 5;
+	uint reg;
+	int ret;
+
+	pm = &meson_gp0_pll_parm[0];
+	pn = &meson_gp0_pll_parm[1];
+	pod = &meson_gp0_pll_parm[2];
+	pfrac = &meson_gp0_pll_parm[3];
+	preset = &meson_gp0_pll_parm[4];
+	pen = &meson_gp0_pll_parm[5];
+	plock = &meson_gp0_pll_parm[6];
+
+	if (!meson_get_params(clk, id, rate, &od, &m, &frac))
+		return -EINVAL;
+
+	do {
+		regmap_write(priv->map, HHI_GP0_PLL_CNTL1, 0x00000000);
+		regmap_write(priv->map, HHI_GP0_PLL_CNTL2, 0x00000000);
+		regmap_write(priv->map, HHI_GP0_PLL_CNTL3, 0x48681c00);
+		regmap_write(priv->map, HHI_GP0_PLL_CNTL4, 0x33771290);
+		regmap_write(priv->map, HHI_GP0_PLL_CNTL5, 0x39272000);
+		regmap_write(priv->map, HHI_GP0_PLL_CNTL6, 0x56540000);
+
+		reg = PARM_SET(pen->width, pen->shift, 0, 1);
+		reg = PARM_SET(pn->width, pn->shift, reg, 1);
+		reg = PARM_SET(pm->width, pm->shift, reg, m);
+		reg = PARM_SET(pod->width, pod->shift, reg, pll_od_to_reg(od));
+		regmap_write(priv->map, pen->reg_off, reg);
+
+		regmap_update_bits(priv->map, pfrac->reg_off,
+				SETPMASK(pfrac->width, pfrac->shift),
+				frac << pfrac->shift);
+
+		/* Reset */
+		regmap_update_bits(priv->map, preset->reg_off,
+				BIT(preset->shift), BIT(preset->shift));
+		regmap_update_bits(priv->map, preset->reg_off,
+				BIT(preset->shift), 0);
+
+		/* Wait for lock */
+		ret = regmap_read_poll_timeout(priv->map, plock->reg_off, reg,
+				(reg & BIT(plock->shift)), 50, 10);
+		if (!ret)
+			break;
+
+		debug("gp0 pll failed to lock\n");
+	} while (retries--);
+
+	if (!retries)
+		return -ETIMEDOUT;
+
+	return meson_clk_get_rate_by_id(clk, id);
 }
 
 static ulong meson_pcie_pll_set_rate(struct clk *clk, ulong rate)
@@ -915,10 +1033,14 @@ static ulong meson_clk_set_rate_by_id(struct clk *clk, unsigned long id,
 	case CLKID_CLK81:
 		if (current_rate != rate)
 			return -EINVAL;
+		return 0;
+
+	case CLKID_GP0_PLL:
+		return meson_gp0_pll_set_rate(clk, id, rate);
+
 	case CLKID_PCIE_PLL:
 		return meson_pcie_pll_set_rate(clk, rate);
 
-		return 0;
 	case CLKID_VPU:
 		return meson_clk_set_rate_by_id(clk,
 				meson_mux_get_parent(clk, CLKID_VPU), rate,
