@@ -813,7 +813,7 @@ static int dw_mipi_dsi_init(struct udevice *dev,
 	}
 
 	/*  get the pixel clock set by the clock framework */
-	timings->pixelclock.typ = clk_get_rate(&clk);
+	//timings->pixelclock.typ = clk_get_rate(&clk);
 
 	dw_mipi_dsi_bridge_set(dsi, timings);
 
