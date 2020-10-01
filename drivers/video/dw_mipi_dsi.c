@@ -816,6 +816,9 @@ static int dw_mipi_dsi_init(struct udevice *dev,
 	}
 
 	ret = clk_get_by_name(device->dev, "px_clk", &clk);
+	/* Try with px name used in amlogic DSI glue */
+	if (ret)
+		ret = clk_get_by_name(device->dev, "px", &clk);
 	if (ret) {
 		dev_err(device->dev, "peripheral clock get error %d\n", ret);
 		return ret;
