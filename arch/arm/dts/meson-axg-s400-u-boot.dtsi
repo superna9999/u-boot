@@ -69,3 +69,7 @@
 &usb2_phy1 {
 	phy-supply = <&vcc_5v>;
 };
+
+&vpu {
+	u-boot,dm-pre-reloc;
+};
