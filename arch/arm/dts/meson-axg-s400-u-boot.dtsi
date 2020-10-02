@@ -3,6 +3,59 @@
  * Copyright (c) 2017 Amlogic, Inc. All rights reserved.
  */
 
+#include <dt-bindings/pwm/pwm.h>
+
+/ {
+	panel_backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm_ab 1 78125 PWM_POLARITY_INVERTED>;
+		enable-gpios = <&gpio GPIOZ_5 GPIO_ACTIVE_HIGH>;
+		power-supply = <&vcc_5v>;
+		brightness-levels = <0 255>;
+		num-interpolated-steps = <255>;
+		default-brightness-level = <250>;
+	};
+};
+
+&mipi_dsi {
+	status = "okay";
+
+	assigned-clocks = <&clkc CLKID_GP0_PLL>;
+	assigned-clock-rates = <283500000>;
+
+	panel@0 {
+		compatible = "tdo,tl070wsh30";
+		reset-gpios = <&gpio GPIOZ_6 GPIO_ACTIVE_LOW>;
+		power-supply = <&vcc_3v3>;
+		backlight = <&panel_backlight>;
+		reg = <0>;
+
+		port {
+			mipi_in_panel: endpoint {
+				remote-endpoint = <&mipi_out_panel>;
+			};
+		};
+	};
+};
+
+&mipi_pcie_analog_dphy {
+	status = "okay";
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&mipi_dsi_panel_port {
+	mipi_out_panel: endpoint {
+		remote-endpoint = <&mipi_in_panel>;
+	};
+};
+
+&pwm_ab {
+	pinctrl-0 = <&pwm_a_x20_pins>, <&pwm_b_z_pins>;
+};
+
 /* wifi module */
 &sd_emmc_b {
 	status = "disabled";
