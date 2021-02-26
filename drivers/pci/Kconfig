@@ -258,9 +258,13 @@ config PCI_MVEBU
 	  Say Y here if you want to enable PCIe controller support on
 	  Armada XP/38x SoCs.
 
+config PCIE_DW_COMMON
+	bool
+	select DM_PCI
+
 config PCI_KEYSTONE
 	bool "TI Keystone PCIe controller"
-	depends on DM_PCI
+	select PCIE_DW_COMMON
 	help
 	  Say Y here if you want to enable PCI controller support on AM654 SoC.
 
@@ -275,7 +279,7 @@ config PCIE_MEDIATEK
 config PCIE_DW_MESON
 	bool "Amlogic Meson DesignWare based PCIe controller"
 	depends on ARCH_MESON
-	select DM_PCI
+	select PCIE_DW_COMMON
 	help
 	  Say Y here if you want to enable DW PCIe controller support on
 	  Amlogic SoCs.
@@ -293,7 +297,7 @@ config PCIE_ROCKCHIP
 config PCIE_DW_ROCKCHIP
 	bool "Rockchip DesignWare based PCIe controller"
 	depends on ARCH_ROCKCHIP
-	select DM_PCI
+	select PCIE_DW_COMMON
 	select PHY_ROCKCHIP_SNPS_PCIE3
 	help
 	  Say Y here if you want to enable DW PCIe controller support on
