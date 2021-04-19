@@ -64,6 +64,12 @@
 	#define BOOT_TARGET_NVME(func)
 #endif
 
+#ifdef CONFIG_CMD_SCSI
+	#define BOOT_TARGET_SCSI(func) func(SCSI, scsi, 0)
+#else
+	#define BOOT_TARGET_SCSI(func)
+#endif
+
 #ifndef BOOT_TARGET_DEVICES
 #define BOOT_TARGET_DEVICES(func) \
 	func(ROMUSB, romusb, na)  \
@@ -72,6 +78,7 @@
 	func(MMC, mmc, 2) \
 	BOOT_TARGET_DEVICES_USB(func) \
 	BOOT_TARGET_NVME(func) \
+	BOOT_TARGET_SCSI(func) \
 	func(PXE, pxe, na) \
 	func(DHCP, dhcp, na)
 #endif
