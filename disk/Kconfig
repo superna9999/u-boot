@@ -110,6 +110,11 @@ config EFI_PARTITION_ENTRIES_OFF
 	  If unsure, leave at 0 (which will locate the partition
 	  entries at the first possible LBA following the GPT header).
 
+config EFI_PARTITION_BACKUP_ONLY
+	bool "Make using backup GPT perfectly valid, only write backup"
+	depends on EFI_PARTITION
+	default n
+
 config SPL_EFI_PARTITION
 	bool "Enable EFI GPT partition table for SPL"
 	depends on  SPL && PARTITIONS

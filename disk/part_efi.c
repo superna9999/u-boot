@@ -174,12 +174,16 @@ static int validate_gpt_entries(gpt_header *gpt_h, gpt_entry *gpt_e)
 static void prepare_backup_gpt_header(gpt_header *gpt_h)
 {
 	uint32_t calc_crc32;
+#ifndef CONFIG_EFI_PARTITION_BACKUP_ONLY
 	uint64_t val;
 
 	/* recalculate the values for the Backup GPT Header */
 	val = le64_to_cpu(gpt_h->my_lba);
+#endif
 	gpt_h->my_lba = gpt_h->alternate_lba;
+#ifndef CONFIG_EFI_PARTITION_BACKUP_ONLY
 	gpt_h->alternate_lba = cpu_to_le64(val);
+#endif
 	gpt_h->partition_entry_lba =
 			cpu_to_le64(le64_to_cpu(gpt_h->last_usable_lba) + 1);
 	gpt_h->header_crc32 = 0;
@@ -390,6 +394,7 @@ int write_gpt_table(struct blk_desc *dev_desc,
 			      le32_to_cpu(gpt_h->header_size));
 	gpt_h->header_crc32 = cpu_to_le32(calc_crc32);
 
+#ifndef CONFIG_EFI_PARTITION_BACKUP_ONLY
 	/* Write the First GPT to the block right after the Legacy MBR */
 	if (blk_dwrite(dev_desc, 1, 1, gpt_h) != 1)
 		goto err;
@@ -397,6 +402,7 @@ int write_gpt_table(struct blk_desc *dev_desc,
 	if (blk_dwrite(dev_desc, le64_to_cpu(gpt_h->partition_entry_lba),
 		       pte_blk_cnt, gpt_e) != pte_blk_cnt)
 		goto err;
+#endif
 
 	prepare_backup_gpt_header(gpt_h);
 
@@ -840,6 +846,7 @@ int write_mbr_and_gpt_partitions(struct blk_desc *dev_desc, void *buf)
 		return 1;
 	}
 
+#ifndef CONFIG_EFI_PARTITION_BACKUP_ONLY
 	/* write Primary GPT */
 	lba = GPT_PRIMARY_PARTITION_TABLE_LBA;
 	cnt = 1;	/* GPT Header (1 block) */
@@ -856,6 +863,7 @@ int write_mbr_and_gpt_partitions(struct blk_desc *dev_desc, void *buf)
 		       __func__, "Primary GPT Entries", cnt, lba);
 		return 1;
 	}
+#endif
 
 	prepare_backup_gpt_header(gpt_h);
 
@@ -1012,18 +1020,24 @@ static int find_valid_gpt(struct blk_desc *dev_desc, gpt_header *gpt_head,
 			 pgpt_pte);
 
 	if (r != 1) {
+#ifndef CONFIG_EFI_PARTITION_BACKUP_ONLY
 		if (r != 2)
 			printf("%s: *** ERROR: Invalid GPT ***\n", __func__);
+#endif
 
 		if (is_gpt_valid(dev_desc, (dev_desc->lba - 1), gpt_head,
 				 pgpt_pte) != 1) {
+#ifndef CONFIG_EFI_PARTITION_BACKUP_ONLY
 			printf("%s: *** ERROR: Invalid Backup GPT ***\n",
 			       __func__);
+#endif
 			return 0;
 		}
+#ifndef CONFIG_EFI_PARTITION_BACKUP_ONLY
 		if (r != 2)
 			printf("%s: ***        Using Backup GPT ***\n",
 			       __func__);
+#endif
 	}
 	return 1;
 }
