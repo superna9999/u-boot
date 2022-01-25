@@ -21,6 +21,7 @@
 #include <asm/unaligned.h>
 #include <efi_loader.h>
 #include <u-boot/crc.h>
+#include <usb.h>
 
 #include <asm/psci.h>
 
@@ -151,5 +152,8 @@ int board_late_init(void)
 
 void reset_cpu(void)
 {
+#if CONFIG_IS_ENABLED(USB) || CONFIG_IS_ENABLED(USB_GADGET_DOWNLOAD)
+	board_usb_cleanup(0, USB_INIT_HOST);
+#endif
 	psci_system_reset();
 }

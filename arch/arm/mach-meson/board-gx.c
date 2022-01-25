@@ -112,6 +112,7 @@ struct mm_region *mem_map = gx_mem_map;
 #if CONFIG_IS_ENABLED(USB_DWC3_MESON_GXL) && \
 	CONFIG_IS_ENABLED(USB_GADGET_DWC2_OTG)
 static struct dwc2_plat_otg_data meson_gx_dwc2_data;
+static enum usb_init_type board_usb_init_type = USB_INIT_HOST;
 
 int board_usb_init(int index, enum usb_init_type init)
 {
@@ -121,6 +122,9 @@ int board_usb_init(int index, enum usb_init_type init)
 	struct udevice *dev, *clk_dev;
 	struct clk clk;
 	int ret;
+
+	if (init == board_usb_init_type)
+		return 0;
 
 	/* find the usb glue node */
 	node = fdt_node_offset_by_compatible(blob, -1,
@@ -202,7 +206,13 @@ int board_usb_init(int index, enum usb_init_type init)
 	if (ret)
 		return ret;
 
-	return dwc2_udc_probe(&meson_gx_dwc2_data);
+	ret = dwc2_udc_probe(&meson_gx_dwc2_data);
+	if (ret)
+		return ret;
+
+	board_usb_init_type = init;
+
+	return 0;
 }
 
 int board_usb_cleanup(int index, enum usb_init_type init)
@@ -211,6 +221,9 @@ int board_usb_cleanup(int index, enum usb_init_type init)
 	struct udevice *dev;
 	int node;
 	int ret;
+
+	if (init == board_usb_init_type)
+		return 0;
 
 	/* find the usb glue node */
 	node = fdt_node_offset_by_compatible(blob, -1,
@@ -235,6 +248,8 @@ int board_usb_cleanup(int index, enum usb_init_type init)
 	ret = dwc3_meson_gxl_force_mode(dev, USB_DR_MODE_HOST);
 	if (ret)
 		return ret;
+
+	board_usb_init_type = init;
 
 	return 0;
 }
