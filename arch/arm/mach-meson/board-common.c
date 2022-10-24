@@ -149,7 +149,7 @@ int board_late_init(void)
 	return meson_board_late_init();
 }
 
-void reset_cpu(void)
+__weak void reset_cpu(void)
 {
 	psci_system_reset();
 }
