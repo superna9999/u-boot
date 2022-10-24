@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2019 BayLibre, SAS.
+ * Author: Neil Armstrong <narmstrong@baylibre.com>
+ */
+
+#include "meson-g12-common-u-boot.dtsi"
+
+&usb2_phy1 {
+	/delete-property/ phy-supply;
+};
+
+&usb3_pcie_phy {
+	/delete-property/ phy-supply;
+};
