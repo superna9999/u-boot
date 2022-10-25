@@ -81,6 +81,8 @@
 	gpio-keys-polled {
 		compatible = "gpio-keys-polled";
 		poll-interval = <10>;
+		pinctrl-0 = <&keypad_gpio_pins>;
+		pinctrl-names = "default";
 
 		volume-up-button {
 			label = "VOLUME-UP";
@@ -204,6 +206,12 @@
 		};
 	};
 
+	poweroff {
+		compatible = "hardkernel,odroid-go-ultra-poweroff";
+		hardkernel,rk817-pmic = <&rk817>;
+		hardkernel,rk818-pmic = <&rk818>;
+	};
+
 	vdd_sys: regulator-vdd_sys {
 		compatible = "regulator-fixed";
 		regulator-name = "VDD_SYS";
@@ -212,16 +220,6 @@
 		regulator-always-on;
 	};
 
-	vddao_1v8: regulator-vddao_1v8 {
-		compatible = "regulator-fixed";
-		regulator-name = "VDDAO_1V8";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
-		vin-supply = <&vddao_3v3>;
-		regulator-always-on;
-	};
-
-	
 	sound {
 		compatible = "amlogic,axg-sound-card";
 		model = "Odroid GO Ultra";
@@ -230,19 +228,13 @@
 				"Speaker", "Internal Speakers";
 		audio-aux-devs = <&tdmout_b>, <&tdmin_b>, <&speaker_amp>;
 		audio-routing =	"TDMOUT_B IN 0", "FRDDR_A OUT 1",
-				"TDMOUT_B IN 1", "FRDDR_B OUT 1",
-				"TDMOUT_B IN 2", "FRDDR_C OUT 1",
 				"TDM_B Playback", "TDMOUT_B OUT",
 				"TODDR_A IN 4", "PDM Capture",
-				"TODDR_B IN 4", "PDM Capture",
-				"TODDR_C IN 4", "PDM Capture",
 				"TDMIN_A IN 1", "TDM_B Capture",
 				"TDMIN_A IN 4", "TDM_B Loopback",
 				"TDMIN_B IN 1", "TDM_B Capture",
 				"TDMIN_B IN 4", "TDM_B Loopback",
 				"TODDR_A IN 1", "TDMIN_B OUT",
-				"TODDR_B IN 1", "TDMIN_B OUT",
-				"TODDR_C IN 1", "TDMIN_B OUT",
 				"MICL", "Mic Jack",
 				"Headphones", "HPOL",
 				"Headphones", "HPOR",
@@ -284,7 +276,12 @@
 		compatible = "simple-audio-amplifier";
 		sound-name-prefix = "Speaker Amplifier";
 		VCC-supply = <&hp_5v>;
+		#sound-dai-cells = <0>;
 	};
+};
+
+&arb {
+	status = "okay";
 };
 
 &cpu0 {
@@ -329,6 +326,62 @@
 	clock-latency = <50000>;
 };
 
+/* RK817 only supports 12.5mV steps, round up the values */
+&cpu_opp_table_0 {
+	opp-1000000000 {
+		opp-microvolt = <737500>;
+	};
+	opp-1200000000 {
+		opp-microvolt = <737500>;
+	};
+	opp-1398000000 {
+		opp-microvolt = <762500>;
+	};
+	opp-1512000000 {
+		opp-microvolt = <800000>;
+	};
+	opp-1608000000 {
+		opp-microvolt = <837500>;
+	};
+	opp-1704000000 {
+		opp-microvolt = <862500>;
+	};
+	opp-1896000000 {
+		opp-microvolt = <987500>;
+	};
+	opp-1992000000 {
+		opp-microvolt = <1012500>;
+	};
+};
+
+/* RK818 only supports 12.5mV steps, round up the values */
+&cpub_opp_table_1 {
+	opp-1000000000 {
+		opp-microvolt = <775000>;
+	};
+	opp-1200000000 {
+		opp-microvolt = <775000>;
+	};
+	opp-1398000000 {
+		opp-microvolt = <800000>;
+	};
+	opp-1512000000 {
+		opp-microvolt = <825000>;
+	};
+	opp-1608000000 {
+		opp-microvolt = <862500>;
+	};
+	opp-1704000000 {
+		opp-microvolt = <900000>;
+	};
+	opp-1800000000 {
+		opp-microvolt = <987500>;
+	};
+	opp-1908000000 {
+		opp-microvolt = <1025000>;
+	};
+};
+
 &i2c_AO {
 	status = "okay";
 	pinctrl-0 = <&i2c_ao_sck_pins>, <&i2c_ao_sda_pins>;
@@ -339,8 +392,6 @@
 		reg = <0x1c>;
 		interrupt-parent = <&gpio_intc>;
 		interrupts = <7 IRQ_TYPE_LEVEL_LOW>; /* GPIOAO_7 */
-		rockchip,system-power-controller;
-		#clock-cells = <1>;
 
 		vcc1-supply = <&vdd_sys>;
 		vcc2-supply = <&vdd_sys>;
@@ -358,12 +409,12 @@
 				regulator-name = "vddcpu_a";
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <750000>;
-				regulator-max-microvolt = <1450000>;
+				regulator-min-microvolt = <775000>;
+				regulator-max-microvolt = <1025000>;
 				regulator-ramp-delay = <6001>;
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <1000000>;
+					regulator-suspend-microvolt = <775000>;
 				};
 			};
 
@@ -371,12 +422,12 @@
 				regulator-name = "vdd_ee";
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <800000>;
+				regulator-min-microvolt = <875000>;
 				regulator-max-microvolt = <1250000>;
 				regulator-ramp-delay = <6001>;
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <1000000>;
+					regulator-suspend-microvolt = <875000>;
 				};
 			};
 
@@ -392,12 +443,12 @@
 			vddao_3v3: DCDC_REG4 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <3000000>;
-				regulator-max-microvolt = <3000000>;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
 				regulator-name = "vddao_3v3";
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <3000000>;
+					regulator-suspend-microvolt = <3300000>;
 				};
 			};
 
@@ -412,7 +463,7 @@
 				};
 			};
 
-			vdd_ldo1: LDO_REG1 {
+			LDO_REG1 {
 				regulator-boot-off;
 				regulator-name = "rk818_LDO1";
 				regulator-state-mem {
@@ -420,7 +471,7 @@
 				};
 			};
 
-			vdd_ldo2: LDO_REG2 {
+			LDO_REG2 {
 				regulator-boot-off;
 				regulator-name = "rk818_LDO2";
 				regulator-state-mem {
@@ -428,7 +479,7 @@
 				};
 			};
 
-			vdd_ldo3: LDO_REG3 {
+			LDO_REG3 {
 				regulator-boot-off;
 				regulator-name = "rk818_LDO3";
 				regulator-state-mem {
@@ -436,7 +487,7 @@
 				};
 			};
 
-			vdd_ldo4: LDO_REG4 {
+			LDO_REG4 {
 				regulator-boot-off;
 				regulator-name = "rk818_LDO4";
 				regulator-state-mem {
@@ -476,7 +527,7 @@
 				};
 			};
 
-			vdd_ldo8: LDO_REG8 {
+			LDO_REG8 {
 				regulator-boot-off;
 				regulator-name = "rk818_LDO8";
 				regulator-state-mem {
@@ -500,6 +551,8 @@
 				regulator-name = "vcc_sd";
 				regulator-always-on;
 				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
 				regulator-state-mem {
 					regulator-on-in-suspend;
 				};
@@ -525,7 +578,8 @@
 		reg = <0x20>;
 		status = "okay";
 		interrupt-parent = <&gpio_intc>;
-		interrupts = <7 IRQ_TYPE_LEVEL_LOW>; /* GPIOAO_7 */
+
+		interrupts = <5 IRQ_TYPE_LEVEL_LOW>; /* GPIOAO_5 */
 
 		vcc1-supply = <&vdd_sys>;
 		vcc2-supply = <&vdd_sys>;
@@ -553,8 +607,8 @@
 			vddcpu_b: DCDC_REG2 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <750000>;
-				regulator-max-microvolt = <1450000>;
+				regulator-min-microvolt = <737500>;
+				regulator-max-microvolt = <1012500>;
 				regulator-ramp-delay = <6001>;
 				regulator-initial-mode = <0x2>;
 				regulator-name = "vddcpu_b";
@@ -567,6 +621,8 @@
 			vcc_2v3: DCDC_REG3 {
 				regulator-always-on;
 				regulator-boot-on;
+				regulator-min-microvolt = <2300000>;
+				regulator-max-microvolt = <2400000>;
 				regulator-initial-mode = <0x2>;
 				regulator-name = "vcc_2v3";
 				regulator-state-mem {
@@ -642,10 +698,8 @@
 			};
 
 			vcc_lcd: LDO_REG8 {
-				regulator-always-on;
-				regulator-boot-on;
-				regulator-min-microvolt = <3000000>;
-				regulator-max-microvolt = <3000000>;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc_lcd";
 				regulator-state-mem {
 					regulator-off-in-suspend;
@@ -661,6 +715,8 @@
 			};
 
 			rk817_boost: BOOST {
+				regulator-always-on;
+				regulator-boot-on;
 				regulator-min-microvolt = <5000000>;
 				regulator-max-microvolt = <5400000>;
 				regulator-name = "rk817_boost";
@@ -681,10 +737,6 @@
 	};
 };
 
-&arb {
-	status = "okay";
-};
-
 &clkc_audio {
 	status = "okay";
 };
@@ -693,12 +745,19 @@
 	status = "okay";
 };
 
-&frddr_b {
-	status = "okay";
-};
-
-&frddr_c {
-	status = "okay";
+&periphs_pinctrl {
+	keypad_gpio_pins: keypad-gpio {
+		mux {
+			groups = "GPIOX_0", "GPIOX_1", "GPIOX_2", "GPIOX_3",
+			         "GPIOX_4", "GPIOX_5", "GPIOX_6", "GPIOX_7",
+				 "GPIOX_8", "GPIOX_9", "GPIOX_10", "GPIOX_11",
+				 "GPIOX_12", "GPIOX_13", "GPIOX_14",  "GPIOX_15",
+				 "GPIOX_16", "GPIOX_17", "GPIOX_18",  "GPIOX_19";
+			function = "gpio_periphs";
+			bias-pull-up;
+			output-disable;
+		};
+	};
 };
 
 &pwm_ab {
@@ -773,14 +832,6 @@
 };
 
 &toddr_a {
-	status = "okay";
-};
-
-&toddr_b {
-	status = "okay";
-};
-
-&toddr_c {
 	status = "okay";
 };
 
