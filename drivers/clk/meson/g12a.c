@@ -51,6 +51,7 @@ static ulong meson_clk_get_rate_by_id(struct clk *clk, unsigned long id);
 
 static struct meson_gate gates[] = {
 	/* Everything Else (EE) domain gates */
+	MESON_GATE(CLKID_MIPI_DSI_HOST, HHI_GCLK_MPEG0, 3),
 	MESON_GATE(CLKID_SPICC0, HHI_GCLK_MPEG0, 8),
 	MESON_GATE(CLKID_I2C, HHI_GCLK_MPEG0, 9),
 	MESON_GATE(CLKID_UART0, HHI_GCLK_MPEG0, 13),
@@ -60,6 +61,7 @@ static struct meson_gate gates[] = {
 	MESON_GATE(CLKID_SD_EMMC_C, HHI_GCLK_MPEG0, 26),
 	MESON_GATE(CLKID_ETH, HHI_GCLK_MPEG1, 3),
 	MESON_GATE(CLKID_UART1, HHI_GCLK_MPEG1, 16),
+	MESON_GATE(CLKID_MIPI_DSI_PHY, HHI_GCLK_MPEG0, 20),
 	MESON_GATE(CLKID_PCIE_COMB, HHI_GCLK_MPEG1, 24),
 	MESON_GATE(CLKID_USB, HHI_GCLK_MPEG1, 25),
 	MESON_GATE(CLKID_PCIE_PHY, HHI_GCLK_MPEG1, 27),
@@ -82,6 +84,20 @@ static struct meson_gate gates[] = {
 	MESON_GATE(CLKID_VAPB_1, HHI_VAPBCLK_CNTL, 24),
 	MESON_GATE(CLKID_VAPB, HHI_VAPBCLK_CNTL, 30),
 	MESON_GATE(CLKID_HDMI, HHI_HDMI_CLK_CNTL, 8),
+	MESON_GATE(CLKID_MIPI_DSI_PXCLK, HHI_MIPIDSI_PHY_CLK_CNTL, 8),
+	MESON_GATE(CLKID_VCLK2, HHI_VIID_CLK_CNTL, 19),
+	MESON_GATE(CLKID_VCLK2_DIV1, HHI_VIID_CLK_CNTL, 0),
+	MESON_GATE(CLKID_VCLK2_DIV, HHI_VIID_CLK_DIV, 16),
+	MESON_GATE(CLKID_VCLK2_INPUT, HHI_VIID_CLK_DIV, 16),
+	MESON_GATE(CLKID_CTS_ENCL, HHI_VID_CLK_CNTL2, 3),
+};
+
+static struct parm meson_vclk2_reset_parm = {
+	HHI_VIID_CLK_CNTL, 15, 1,
+};
+
+static struct parm meson_vclk2_div_reset_parm = {
+	HHI_VIID_CLK_DIV, 17, 1,
 };
 
 static int meson_set_gate_by_id(struct clk *clk, unsigned long id, bool on)
@@ -109,10 +125,35 @@ static int meson_set_gate_by_id(struct clk *clk, unsigned long id, bool on)
 	if (gate->reg == 0)
 		return 0;
 
+	switch (id) {
+	case CLKID_VCLK2_DIV:
+		if (on)
+			regmap_update_bits(priv->map, meson_vclk2_div_reset_parm.reg_off,
+					BIT(meson_vclk2_div_reset_parm.shift), 0);
+		break;
+	}
+
 	debug("%s: really %sabling %ld\n", __func__, on ? "en" : "dis", id);
 
 	regmap_update_bits(priv->map, gate->reg,
 			   BIT(gate->bit), on ? BIT(gate->bit) : 0);
+
+	switch (id) {
+	case CLKID_VCLK2:
+		/* Do a reset pulse */
+		regmap_update_bits(priv->map, meson_vclk2_reset_parm.reg_off,
+			   BIT(meson_vclk2_reset_parm.shift),
+			   BIT(meson_vclk2_reset_parm.shift));
+		regmap_update_bits(priv->map, meson_vclk2_reset_parm.reg_off,
+			   BIT(meson_vclk2_reset_parm.shift), 0);
+		break;
+	case CLKID_VCLK2_DIV:
+		if (!on)
+			regmap_update_bits(priv->map, meson_vclk2_div_reset_parm.reg_off,
+					BIT(meson_vclk2_div_reset_parm.shift),
+					BIT(meson_vclk2_div_reset_parm.shift));
+		break;
+	}
 
 	/* Propagate to next gate(s) */
 	switch (id) {
@@ -130,6 +171,18 @@ static int meson_set_gate_by_id(struct clk *clk, unsigned long id, bool on)
 	case CLKID_VPU_1:
 		return meson_set_gate_by_id(clk,
 			meson_mux_get_parent(clk, CLKID_VPU_1_SEL), on);
+	case CLKID_CTS_ENCL:
+		return meson_set_gate_by_id(clk,
+			meson_mux_get_parent(clk, CLKID_CTS_ENCL_SEL), on);
+	case CLKID_VCLK2_DIV1:
+		return meson_set_gate_by_id(clk, CLKID_VCLK2, on);
+	case CLKID_VCLK2:
+		return meson_set_gate_by_id(clk, CLKID_VCLK2_DIV, on);
+	case CLKID_VCLK2_DIV:
+		return meson_set_gate_by_id(clk, CLKID_VCLK2_INPUT, on);
+	case CLKID_VCLK2_INPUT:
+		return meson_set_gate_by_id(clk,
+			meson_mux_get_parent(clk, CLKID_VCLK2_SEL), on);
 	}
 
 	return 0;
@@ -175,6 +228,18 @@ static struct parm meson_hdmi_div_parm = {
 
 int meson_hdmi_div_parent = CLKID_HDMI_SEL;
 
+static struct parm meson_mipi_dsi_div_parm = {
+	HHI_MIPIDSI_PHY_CLK_CNTL, 0, 7,
+};
+
+int meson_mipi_dsi_div_parent = CLKID_MIPI_DSI_PXCLK_SEL;
+
+static struct parm meson_vclk2_div_parm = {
+	HHI_VIID_CLK_DIV, 0, 8,
+};
+
+int meson_vclk2_div_parent = CLKID_VCLK2_SEL;
+
 static ulong meson_div_get_rate(struct clk *clk, unsigned long id)
 {
 	struct meson_clk *priv = dev_get_priv(clk->dev);
@@ -203,6 +268,14 @@ static ulong meson_div_get_rate(struct clk *clk, unsigned long id)
 	case CLKID_HDMI_DIV:
 		parm = &meson_hdmi_div_parm;
 		parent = meson_hdmi_div_parent;
+		break;
+	case CLKID_MIPI_DSI_PXCLK_DIV:
+		parm = &meson_mipi_dsi_div_parm;
+		parent = meson_mipi_dsi_div_parent;
+		break;
+	case CLKID_VCLK2_DIV:
+		parm = &meson_vclk2_div_parm;
+		parent = meson_vclk2_div_parent;
 		break;
 	default:
 		return -ENOENT;
@@ -262,6 +335,14 @@ static ulong meson_div_set_rate(struct clk *clk, unsigned long id, ulong rate,
 	case CLKID_HDMI_DIV:
 		parm = &meson_hdmi_div_parm;
 		parent = meson_hdmi_div_parent;
+		break;
+	case CLKID_MIPI_DSI_PXCLK_DIV:
+		parm = &meson_mipi_dsi_div_parm;
+		parent = meson_mipi_dsi_div_parent;
+		break;
+	case CLKID_VCLK2_DIV:
+		parm = &meson_vclk2_div_parm;
+		parent = meson_vclk2_div_parent;
 		break;
 	default:
 		return -ENOENT;
@@ -375,6 +456,62 @@ static int meson_hdmi_mux_parents[] = {
 	CLKID_FCLK_DIV5,
 };
 
+static struct parm meson_mipi_dsi_mux_parm = {
+	HHI_MIPIDSI_PHY_CLK_CNTL, 12, 3,
+};
+
+/* Only support GP0 source */
+static int meson_mipi_dsi_mux_parents[] = {
+	-ENOENT,
+	CLKID_GP0_PLL,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+};
+
+static struct parm meson_encl_sel_mux_parm = {
+	HHI_VIID_CLK_DIV, 12, 4,
+};
+
+/* Only support VCLK2_DIV1 source */
+static int meson_encl_sel_mux_parents[] = {
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	CLKID_VCLK2_DIV1,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+};
+
+static struct parm meson_vclk2_sel_mux_parm = {
+	HHI_VIID_CLK_CNTL, 16, 3,
+};
+
+/* Only support GP0 source */
+static int meson_vclk2_sel_mux_parents[] = {
+	-ENOENT,
+	CLKID_GP0_PLL,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+	-ENOENT,
+};
+
 static ulong meson_mux_get_parent(struct clk *clk, unsigned long id)
 {
 	struct meson_clk *priv = dev_get_priv(clk->dev);
@@ -410,6 +547,18 @@ static ulong meson_mux_get_parent(struct clk *clk, unsigned long id)
 	case CLKID_HDMI_SEL:
 		parm = &meson_hdmi_mux_parm;
 		parents = meson_hdmi_mux_parents;
+		break;
+	case CLKID_MIPI_DSI_PXCLK_SEL:
+		parm = &meson_mipi_dsi_mux_parm;
+		parents = meson_mipi_dsi_mux_parents;
+		break;
+	case CLKID_CTS_ENCL_SEL:
+		parm = &meson_encl_sel_mux_parm;
+		parents = meson_encl_sel_mux_parents;
+		break;
+	case CLKID_VCLK2_SEL:
+		parm = &meson_vclk2_sel_mux_parm;
+		parents = meson_vclk2_sel_mux_parents;
 		break;
 	default:
 		return -ENOENT;
@@ -473,6 +622,18 @@ static ulong meson_mux_set_parent(struct clk *clk, unsigned long id,
 	case CLKID_HDMI_SEL:
 		parm = &meson_hdmi_mux_parm;
 		parents = meson_hdmi_mux_parents;
+		break;
+	case CLKID_MIPI_DSI_PXCLK_SEL:
+		parm = &meson_mipi_dsi_mux_parm;
+		parents = meson_mipi_dsi_mux_parents;
+		break;
+	case CLKID_CTS_ENCL_SEL:
+		parm = &meson_encl_sel_mux_parm;
+		parents = meson_encl_sel_mux_parents;
+		break;
+	case CLKID_VCLK2_SEL:
+		parm = &meson_vclk2_sel_mux_parm;
+		parents = meson_vclk2_sel_mux_parents;
 		break;
 	default:
 		/* Not a mux */
@@ -793,6 +954,7 @@ static ulong meson_clk_get_rate_by_id(struct clk *clk, unsigned long id)
 	case CLKID_VPU_1_DIV:
 	case CLKID_VAPB_0_DIV:
 	case CLKID_VAPB_1_DIV:
+	case CLKID_VCLK2_DIV:
 	case CLKID_HDMI_DIV:
 		rate = meson_div_get_rate(clk, id);
 		break;
@@ -803,7 +965,19 @@ static ulong meson_clk_get_rate_by_id(struct clk *clk, unsigned long id)
 	case CLKID_VAPB_0_SEL:
 	case CLKID_VAPB_1_SEL:
 	case CLKID_HDMI_SEL:
+	case CLKID_MIPI_DSI_PXCLK_SEL:
+	case CLKID_CTS_ENCL_SEL:
+	case CLKID_VCLK2_SEL:
 		rate = meson_mux_get_rate(clk, id);
+		break;
+	case CLKID_CTS_ENCL:
+		rate = meson_mux_get_rate(clk, CLKID_CTS_ENCL_SEL);
+		break;
+	case CLKID_VCLK2_DIV1:
+		rate = meson_div_get_rate(clk, CLKID_VCLK2_DIV);
+		break;
+	case CLKID_MIPI_DSI_PXCLK:
+		rate = meson_mux_get_rate(clk, CLKID_MIPI_DSI_PXCLK_SEL);
 		break;
 	default:
 		if (id >= ARRAY_SIZE(gates))
@@ -1071,6 +1245,28 @@ static ulong meson_clk_set_rate_by_id(struct clk *clk, unsigned long id,
 	case CLKID_HDMI:
 		return meson_clk_set_rate_by_id(clk, CLKID_HDMI_DIV,
 						rate, current_rate);
+	case CLKID_CTS_ENCL_SEL:
+	case CLKID_CTS_ENCL:
+		return meson_clk_set_rate_by_id(clk,
+				meson_mux_get_parent(clk, CLKID_CTS_ENCL_SEL),
+				rate, current_rate);
+
+	case CLKID_MIPI_DSI_PXCLK_SEL:
+	case CLKID_MIPI_DSI_PXCLK:
+		return meson_clk_set_rate_by_id(clk,
+				meson_mux_get_parent(clk, CLKID_MIPI_DSI_PXCLK_SEL),
+				rate, current_rate);
+
+	case CLKID_VCLK2_DIV:
+	case CLKID_VCLK2_DIV1:
+		return meson_div_set_rate(clk, CLKID_VCLK2_DIV, rate,
+					  current_rate);
+
+	case CLKID_VCLK2_SEL:
+		return meson_clk_set_rate_by_id(clk,
+				meson_mux_get_parent(clk, CLKID_VCLK2_SEL),
+				rate, current_rate);
+
 	default:
 		return -ENOENT;
 	}
