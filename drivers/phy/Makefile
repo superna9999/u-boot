@@ -28,6 +28,7 @@ obj-$(CONFIG_PHY_STM32_USBPHYC) += phy-stm32-usbphyc.o
 obj-$(CONFIG_MESON_GXBB_USB_PHY) += meson-gxbb-usb2.o
 obj-$(CONFIG_MESON_GXL_USB_PHY) += meson-gxl-usb2.o
 obj-$(CONFIG_MESON_G12A_USB_PHY) += meson-g12a-usb2.o meson-g12a-usb3-pcie.o
+obj-$(CONFIG_MESON_G12A_MIPI_DPHY_ANALOG_PHY) += meson-g12a-mipi-dphy-analog.o
 obj-$(CONFIG_MESON_AXG_MIPI_DPHY) += meson-axg-mipi-dphy.o
 obj-$(CONFIG_MESON_AXG_MIPI_PCIE_ANALOG_PHY) += meson-axg-mipi-pcie-analog.o
 obj-$(CONFIG_OMAP_USB2_PHY) += omap-usb2-phy.o
