@@ -1772,8 +1772,14 @@ static void meson_venc_mipi_dsi_mode_set(struct meson_vpu_priv *priv,
 
 	meson_encl_load_gamma(priv);
 
+	writel_relaxed(0, priv->io_base + _REG(ENCL_VIDEO_EN));
+
 	writel_bits(BIT(3), BIT(3), priv->io_base + _REG(ENCL_VIDEO_MODE_ADV));
-	writel(0, priv->io_base + _REG(ENCL_TST_EN));
+	writel_relaxed(0, priv->io_base + _REG(ENCL_TST_EN));
+
+	writel_bits(BIT(0), 0, priv->io_base + _REG(VPP_WRAP_OSD1_MATRIX_EN_CTRL));
+
+	writel_relaxed(1, priv->io_base + _REG(ENCL_VIDEO_EN));
 }
 
 void meson_vpu_setup_venc(struct udevice *dev,
