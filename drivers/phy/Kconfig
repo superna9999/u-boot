@@ -217,7 +217,7 @@ config MESON_G12A_MIPI_DPHY_ANALOG_PHY
 
 config MESON_AXG_MIPI_DPHY
 	bool "Amlogic Meson AXG MIPI D-PHY"
-	depends on PHY && ARCH_MESON && MESON_AXG
+	depends on PHY && ARCH_MESON && (MESON_AXG || MESON_G12A)
 	select MIPI_DPHY_HELPERS
 	imply REGMAP
 	help
