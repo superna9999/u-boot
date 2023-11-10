@@ -1729,11 +1729,11 @@ static void meson_venc_mipi_dsi_mode_set(struct meson_vpu_priv *priv,
 
 	/* Hsync signal for TTL */
 	if (mode->flags & DISPLAY_FLAGS_HSYNC_HIGH) {
-		writel(hso_end, priv->io_base + _REG(L_STH1_HS_ADDR));
-		writel(hso_begin, priv->io_base + _REG(L_STH1_HE_ADDR));
-	} else {
 		writel(hso_begin, priv->io_base + _REG(L_STH1_HS_ADDR));
 		writel(hso_end, priv->io_base + _REG(L_STH1_HE_ADDR));
+	} else {
+		writel(hso_end, priv->io_base + _REG(L_STH1_HS_ADDR));
+		writel(hso_begin, priv->io_base + _REG(L_STH1_HE_ADDR));
 	}
 	writel(0, priv->io_base + _REG(L_STH1_VS_ADDR));
 	writel(max_lncnt, priv->io_base + _REG(L_STH1_VE_ADDR));
@@ -1742,11 +1742,11 @@ static void meson_venc_mipi_dsi_mode_set(struct meson_vpu_priv *priv,
 	writel(vso_begin, priv->io_base + _REG(L_STV1_HS_ADDR));
 	writel(vso_end, priv->io_base + _REG(L_STV1_HE_ADDR));
 	if (mode->flags & DISPLAY_FLAGS_VSYNC_HIGH) {
-		writel(vso_eline, priv->io_base + _REG(L_STV1_VS_ADDR));
-		writel(vso_bline, priv->io_base + _REG(L_STV1_VE_ADDR));
-	} else {
 		writel(vso_bline, priv->io_base + _REG(L_STV1_VS_ADDR));
 		writel(vso_eline, priv->io_base + _REG(L_STV1_VE_ADDR));
+	} else {
+		writel(vso_eline, priv->io_base + _REG(L_STV1_VS_ADDR));
+		writel(vso_bline, priv->io_base + _REG(L_STV1_VE_ADDR));
 	}
 
 	/* DE signal */
