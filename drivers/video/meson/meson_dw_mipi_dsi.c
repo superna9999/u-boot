@@ -36,11 +36,11 @@ struct meson_dw_mipi_dsi {
 	struct udevice *dsi_host;
 	struct udevice *dphy;
 	void __iomem *base;
-	void __iomem *hhi_base;
 	struct clk px_clk;
 	struct clk bit_clk;
 	struct phy phy;
 	struct phy_configure_opts_mipi_dphy config;
+	struct display_timing mode;
 };
 
 #define writel_bits(mask, val, addr) \
@@ -119,7 +119,7 @@ static int dsi_get_lane_mbps(void *priv_data, struct display_timing *timings,
 {
 	struct meson_dw_mipi_dsi *priv = priv_data;
 
-	*lane_mbps = priv->config.hs_clk_rate / 1000000;
+	*lane_mbps = DIV_ROUND_UP(priv->config.hs_clk_rate, 1000000);
 
 	return 0;
 }
@@ -128,12 +128,25 @@ static int
 dw_mipi_dsi_phy_get_timing(void *priv_data, unsigned int lane_mbps,
 			   struct mipi_dsi_phy_timing *timing)
 {
-	/* TOFIX handle other cases */
+	struct meson_dw_mipi_dsi *priv = priv_data;
 
-	timing->clk_lp2hs = 37;
-	timing->clk_hs2lp = 135;
-	timing->data_lp2hs = 50;
-	timing->data_hs2lp = 3;
+	switch (priv->mode.hactive.typ) {
+	case 240:
+	case 768:
+	case 1920:
+	case 2560:
+		timing->clk_lp2hs = 23;
+		timing->clk_hs2lp = 38;
+		timing->data_lp2hs = 15;
+		timing->data_hs2lp = 9;
+		break;
+
+	default:
+		timing->clk_lp2hs = 37;
+		timing->clk_hs2lp = 135;
+		timing->data_lp2hs = 50;
+		timing->data_hs2lp = 3;
+	}
 
 	return 0;
 }
@@ -178,10 +191,9 @@ static int meson_dw_mipi_dsi_enable(struct udevice *dev, int panel_bpp,
 	struct meson_dw_mipi_dsi *priv = dev_get_priv(dev);
 	unsigned int dpi_data_format, venc_data_width;
 	struct mipi_dsi_panel_plat *mplat;
-	struct display_timing mode;
 	int bpp, ret;
 
-	memcpy(&mode, timings, sizeof(struct display_timing));
+	memcpy(&priv->mode, timings, sizeof(struct display_timing));
 
 	mplat = dev_get_plat(priv->panel);
 	mplat->device = &priv->device;
@@ -195,18 +207,18 @@ static int meson_dw_mipi_dsi_enable(struct udevice *dev, int panel_bpp,
 	debug("Display timing:\n");
 	debug(" hactive %04d, hfrontp %04d, hbackp %04d hsync %04d\n"
 	      " vactive %04d, vfrontp %04d, vbackp %04d vsync %04d\n",
-	       mode.hactive.typ, mode.hfront_porch.typ,
-	       mode.hback_porch.typ, mode.hsync_len.typ,
-	       mode.vactive.typ, mode.vfront_porch.typ,
-	       mode.vback_porch.typ, mode.vsync_len.typ);
+	       priv->mode.hactive.typ, priv->mode.hfront_porch.typ,
+	       priv->mode.hback_porch.typ, priv->mode.hsync_len.typ,
+	       priv->mode.vactive.typ, priv->mode.vfront_porch.typ,
+	       priv->mode.vback_porch.typ, priv->mode.vsync_len.typ);
 	debug(" flags: ");
-	if (mode.flags & DISPLAY_FLAGS_HSYNC_LOW)
+	if (priv->mode.flags & DISPLAY_FLAGS_HSYNC_LOW)
 		debug("hsync_low ");
-	if (mode.flags & DISPLAY_FLAGS_HSYNC_HIGH)
+	if (priv->mode.flags & DISPLAY_FLAGS_HSYNC_HIGH)
 		debug("hsync_high ");
-	if (mode.flags & DISPLAY_FLAGS_VSYNC_LOW)
+	if (priv->mode.flags & DISPLAY_FLAGS_VSYNC_LOW)
 		debug("vsync_low ");
-	if (mode.flags & DISPLAY_FLAGS_VSYNC_HIGH)
+	if (priv->mode.flags & DISPLAY_FLAGS_VSYNC_HIGH)
 		debug("vsync_high ");
 	debug("\n");
 	debug("Panel '%s' info:\n", priv->device.name);
@@ -214,7 +226,7 @@ static int meson_dw_mipi_dsi_enable(struct udevice *dev, int panel_bpp,
 	debug(" format: %d bpp: %d\n", priv->device.format, bpp);
 	debug(" flags: %08lx\n", priv->device.mode_flags);
 
-	phy_mipi_dphy_get_default_config(mode.pixelclock.typ,
+	phy_mipi_dphy_get_default_config(priv->mode.pixelclock.typ,
 					 bpp, priv->device.lanes,
 					 &priv->config);
 
@@ -226,10 +238,10 @@ static int meson_dw_mipi_dsi_enable(struct udevice *dev, int panel_bpp,
 	}
 
 	clk_disable(&priv->px_clk);
-	ret = clk_set_rate(&priv->px_clk, mode.pixelclock.typ);
+	ret = clk_set_rate(&priv->px_clk, priv->mode.pixelclock.typ);
 	if (ret) {
 		dev_err(dev, "Failed to set DSI Pixel clock rate %u\n",
-			mode.pixelclock.typ);
+			priv->mode.pixelclock.typ);
 		return ret;
 	}
 
@@ -268,7 +280,7 @@ static int meson_dw_mipi_dsi_enable(struct udevice *dev, int panel_bpp,
 	if (ret)
 		return ret;
 
-	ret = dsi_host_init(priv->dsi_host, &priv->device, &mode, 4, &meson_dw_mipi_dsi_phy_ops);
+	ret = dsi_host_init(priv->dsi_host, &priv->device, &priv->mode, 4, &meson_dw_mipi_dsi_phy_ops);
 	if (ret) {
 		dev_err(dev, "failed to initialize mipi dsi host\n");
 		return ret;
@@ -302,24 +314,6 @@ static int meson_dw_mipi_dsi_bind(struct udevice *dev)
 	return dm_scan_fdt_dev(dev);
 }
 
-static void __iomem * meson_dw_mipi_dsi_get_hhi(struct udevice *dev)
-{
-	struct udevice *vpudev;
-	struct uclass *uc;
-	int err;
-
-	err = uclass_get(UCLASS_VIDEO, &uc);
-	if (err)
-		return NULL;
-
-	uclass_foreach_dev(vpudev, uc) {
-		if (strstr(vpudev->driver->name, "meson_vpu"))
-			return dev_remap_addr_index(vpudev, 1);
-	}
-
-	return NULL;
-}
-
 static int meson_dw_mipi_dsi_probe(struct udevice *dev)
 {
 	struct meson_dw_mipi_dsi *priv = dev_get_priv(dev);
@@ -332,11 +326,6 @@ static int meson_dw_mipi_dsi_probe(struct udevice *dev)
 
 	priv->base = dev_remap_addr_index(dev, 0);
 	if (!priv->base)
-		return -EINVAL;
-
-	/* Get HHI from vpu */
-	priv->hhi_base = meson_dw_mipi_dsi_get_hhi(dev);
-	if (!priv->hhi_base)
 		return -EINVAL;
 
 	ret = uclass_first_device_err(UCLASS_PANEL, &priv->panel);
