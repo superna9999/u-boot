@@ -29,3 +29,12 @@ config CLK_MESON_A1
 	help
 	  Enable clock support for the Amlogic A1 SoC family, such as
 	  the A113L
+
+config CLK_MESON_MSR
+	bool "Enable clock measure driver for Amlogic SoCs"
+	depends on CLK && ARCH_MESON
+	depends on CMD_CLK
+	default ARCH_MESON
+	help
+	  Enable clock support for the Hardware Clock Measure for various
+	  Amlogic SoCs.
