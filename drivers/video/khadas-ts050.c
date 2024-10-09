@@ -4,7 +4,6 @@
  * Copyright (C) 2020 BayLibre, SAS
  * Author: Neil Armstrong <narmstrong@baylibre.com>
  */
-#include <common.h>
 #include <backlight.h>
 #include <dm.h>
 #include <mipi_dsi.h>
