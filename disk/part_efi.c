@@ -55,12 +55,58 @@ static inline u32 efi_crc32(const void *buf, u32 len)
 static int pmbr_part_valid(struct partition *part);
 static int is_pmbr_valid(legacy_mbr * mbr);
 static int is_gpt_valid(struct blk_desc *desc, u64 lba, gpt_header *pgpt_head,
-			gpt_entry **pgpt_pte);
+			gpt_entry **pgpt_pte, bool cache);
 static gpt_entry *alloc_read_gpt_entries(struct blk_desc *desc,
 					 gpt_header *pgpt_head);
 static int is_pte_valid(gpt_entry * pte);
 static int find_valid_gpt(struct blk_desc *desc, gpt_header *gpt_head,
 			  gpt_entry **pgpt_pte);
+
+static struct gpt_pte_cache_data {
+	struct blk_desc *desc;
+	u64 lba;
+	gpt_entry *gpt_pte;
+	gpt_header gpt_head;
+} gpt_pte_cache;
+
+static void clear_gpt_pte_cache(void)
+{
+	if (gpt_pte_cache.desc) {
+		if (gpt_pte_cache.gpt_pte)
+			free(gpt_pte_cache.gpt_pte);
+
+		memset(&gpt_pte_cache, 0, sizeof(gpt_pte_cache));
+	}
+}
+
+static void cache_gpt_pte(struct blk_desc *desc, u64 lba,
+			  gpt_entry *gpt_pte, gpt_header *pgpt_head)
+{
+	if (gpt_pte_cache.gpt_pte)
+		free(gpt_pte_cache.gpt_pte);
+
+	gpt_pte_cache.desc = desc;
+	gpt_pte_cache.lba = lba;
+	gpt_pte_cache.gpt_pte = gpt_pte;
+	if (pgpt_head)
+		memcpy(&gpt_pte_cache.gpt_head, pgpt_head, sizeof(gpt_header));
+}
+
+static gpt_entry *get_cached_gpt_pte(struct blk_desc *desc, u64 lba,
+				     gpt_header *pgpt_head)
+{
+	if (gpt_pte_cache.desc && gpt_pte_cache.gpt_pte) {
+		if (gpt_pte_cache.desc == desc &&
+		    gpt_pte_cache.lba == lba) {
+			memcpy(pgpt_head, &gpt_pte_cache.gpt_head, sizeof(gpt_header));
+			return gpt_pte_cache.gpt_pte;
+		}
+
+		clear_gpt_pte_cache();
+	}
+
+	return NULL;
+}
 
 static char *print_efiname(gpt_entry *pte)
 {
@@ -211,8 +257,6 @@ int get_disk_guid(struct blk_desc *desc, char *guid)
 	guid_bin = gpt_head->disk_guid.b;
 	uuid_bin_to_str(guid_bin, guid, UUID_STR_FORMAT_GUID);
 
-	/* Remember to free pte */
-	free(gpt_pte);
 	return 0;
 }
 
@@ -252,9 +296,6 @@ static void __maybe_unused part_print_efi(struct blk_desc *desc)
 		uuid = (unsigned char *)gpt_pte[i].unique_partition_guid.b;
 		printf("\tguid:\t%pUl\n", uuid);
 	}
-
-	/* Remember to free pte */
-	free(gpt_pte);
 	return;
 }
 
@@ -277,7 +318,6 @@ static int __maybe_unused part_get_info_efi(struct blk_desc *desc, int part,
 	if (part > le32_to_cpu(gpt_head->num_partition_entries) ||
 	    !is_pte_valid(&gpt_pte[part - 1])) {
 		log_debug("Invalid partition number %d\n", part);
-		free(gpt_pte);
 		return -EPERM;
 	}
 
@@ -307,8 +347,6 @@ static int __maybe_unused part_get_info_efi(struct blk_desc *desc, int part,
 	log_debug("start 0x" LBAF ", size 0x" LBAF ", name %s\n", info->start,
 		  info->size, info->name);
 
-	/* Remember to free pte */
-	free(gpt_pte);
 	return 0;
 }
 
@@ -381,6 +419,9 @@ int write_gpt_table(struct blk_desc *desc, gpt_header *gpt_h, gpt_entry *gpt_e)
 	const int pte_blk_cnt = BLOCK_CNT((gpt_h->num_partition_entries
 					   * sizeof(gpt_entry)), desc);
 	u32 calc_crc32;
+
+	/* Clean cache */
+	clear_gpt_pte_cache();
 
 	debug("max lba: %x\n", (u32)desc->lba);
 	/* Setup the Protective MBR */
@@ -620,6 +661,9 @@ int gpt_restore(struct blk_desc *desc, char *str_disk_guid,
 	gpt_entry *gpt_e;
 	int ret, size;
 
+	/* Clean cache */
+	clear_gpt_pte_cache();
+
 	size = PAD_TO_BLOCKSIZE(sizeof(gpt_header), desc);
 	gpt_h = malloc_cache_aligned(size);
 	if (gpt_h == NULL) {
@@ -689,7 +733,7 @@ int gpt_verify_headers(struct blk_desc *desc, gpt_header *gpt_head,
 	 */
 	if (is_gpt_valid(desc,
 			 GPT_PRIMARY_PARTITION_TABLE_LBA,
-			 gpt_head, gpt_pte) != 1) {
+			 gpt_head, gpt_pte, false) != 1) {
 		log_debug("Invalid GPT\n");
 		return -1;
 	}
@@ -706,7 +750,7 @@ int gpt_verify_headers(struct blk_desc *desc, gpt_header *gpt_head,
 	}
 
 	if (is_gpt_valid(desc, (desc->lba - 1),
-			 gpt_head, gpt_pte) != 1) {
+			 gpt_head, gpt_pte, false) != 1) {
 		log_debug("Invalid Backup GPT\n");
 		return -1;
 	}
@@ -764,10 +808,13 @@ int gpt_repair_headers(struct blk_desc *desc)
 	int is_gpt1_valid, is_gpt2_valid;
 	int ret = -1;
 
+	/* Clean cache */
+	clear_gpt_pte_cache();
+
 	is_gpt1_valid = is_gpt_valid(desc, GPT_PRIMARY_PARTITION_TABLE_LBA,
-				     gpt_h1, &gpt_e1);
+				     gpt_h1, &gpt_e1, false);
 	is_gpt2_valid = is_gpt_valid(desc, desc->lba - 1,
-				     gpt_h2, &gpt_e2);
+				     gpt_h2, &gpt_e2, false);
 
 	if (is_gpt1_valid && is_gpt2_valid) {
 		ret = 0;
@@ -906,6 +953,9 @@ int write_mbr_and_gpt_partitions(struct blk_desc *desc, void *buf)
 	lbaint_t lba;
 	int cnt;
 
+	/* Clean cache */
+	clear_gpt_pte_cache();
+
 	if (is_valid_gpt_buf(desc, buf))
 		return -1;
 
@@ -1023,17 +1073,24 @@ static int is_pmbr_valid(legacy_mbr *mbr)
  * lba is the logical block address of the GPT header to test
  * gpt is a GPT header ptr, filled on return.
  * ptes is a PTEs ptr, filled on return.
+ * cache is a bool, true to use the cached gpt_pte from previous call
  *
  * Description: returns 1 if valid,  0 on error, 2 if ignored header
  * If valid, returns pointers to PTEs.
  */
 static int is_gpt_valid(struct blk_desc *desc, u64 lba, gpt_header *pgpt_head,
-			gpt_entry **pgpt_pte)
+			gpt_entry **pgpt_pte, bool cache)
 {
 	/* Confirm valid arguments prior to allocation. */
 	if (!desc || !pgpt_head) {
 		log_debug("Invalid Argument(s)\n");
 		return 0;
+	}
+
+	if (cache) {
+		*pgpt_pte = get_cached_gpt_pte(desc, lba, pgpt_head);
+		if (*pgpt_pte)
+			return 1;
 	}
 
 	ALLOC_CACHE_ALIGN_BUFFER_PAD(legacy_mbr, mbr, 1, desc->blksz);
@@ -1081,6 +1138,9 @@ static int is_gpt_valid(struct blk_desc *desc, u64 lba, gpt_header *pgpt_head,
 		return 0;
 	}
 
+	if (cache)
+		cache_gpt_pte(desc, lba, *pgpt_pte, pgpt_head);
+
 	/* We're done, all's well */
 	return 1;
 }
@@ -1100,13 +1160,14 @@ static int find_valid_gpt(struct blk_desc *desc, gpt_header *gpt_head,
 	int r;
 
 	r = is_gpt_valid(desc, GPT_PRIMARY_PARTITION_TABLE_LBA, gpt_head,
-			 pgpt_pte);
+			 pgpt_pte, true);
 
 	if (r != 1) {
 		if (r != 2)
 			log_debug("Invalid GPT\n");
 
-		if (is_gpt_valid(desc, desc->lba - 1, gpt_head, pgpt_pte)
+		if (is_gpt_valid(desc, desc->lba - 1, gpt_head, pgpt_pte,
+				 true)
 		    != 1) {
 			log_debug("Invalid Backup GPT\n");
 			return 0;
